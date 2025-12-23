@@ -6,10 +6,11 @@
     <EnableModZip>False</EnableModZip>
     <EnableGameDebugging>false</EnableGameDebugging>
     <Nullable>Enable</Nullable>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Namotion.Reflection" Version="2.0.10" />
-    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.0.1" />
+    <PackageReference Include="Namotion.Reflection" Version="2.1.2" />
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.3.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TehPers.Core\TehPers.Core.csproj" />

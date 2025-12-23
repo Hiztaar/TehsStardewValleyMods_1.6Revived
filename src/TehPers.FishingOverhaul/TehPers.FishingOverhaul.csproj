@@ -6,11 +6,13 @@
     <IgnoreModFilePatterns>^ContentPatcher\.(dll|pdb)$, ^TehPers\.Core\.Api\.(dll|pdb|xml)$, ^Ninject\.dll$</IgnoreModFilePatterns>
     <Nullable>Enable</Nullable>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\TehPers.FishingOverhaul.xml</DocumentationFile>
+	<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+	<GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.0.1" />
     <PackageReference Include="Superpower" Version="3.0.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+	<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\TehPers.FishingOverhaul.Api\TehPers.FishingOverhaul.Api.csproj" />

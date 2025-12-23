@@ -18,7 +18,10 @@ namespace TehPers.FishingOverhaul.Services
 
         private readonly List<FishingContent> defaultContent = new();
 
+        // CORRECTION: Désactivation de l'avertissement pour cet événement inutilisé
+#pragma warning disable CS0067
         public event EventHandler? ReloadRequested;
+#pragma warning restore CS0067
 
         public DefaultFishingSource(
             IManifest manifest,

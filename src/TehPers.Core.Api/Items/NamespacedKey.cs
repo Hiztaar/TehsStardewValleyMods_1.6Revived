@@ -276,7 +276,6 @@ namespace TehPers.Core.Api.Items
             return NamespacedKey.SdvCustom(ItemTypes.Furniture, parentSheetIndex.ToString());
         }
 
-
         /// <summary>
         /// Creates a <see cref="NamespacedKey"/> for a furniture item in the SDV namespace.
         /// </summary>
@@ -379,7 +378,7 @@ namespace TehPers.Core.Api.Items
                 return base.ConvertFrom(context, culture, value)!;
             }
 
-            public override bool CanConvertTo(ITypeDescriptorContext? context, Type destinationType)
+            public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType)
             {
                 return destinationType == typeof(string)
                     || base.CanConvertTo(context, destinationType);
