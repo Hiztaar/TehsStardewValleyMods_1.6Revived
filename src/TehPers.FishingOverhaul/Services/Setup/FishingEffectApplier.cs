@@ -30,7 +30,9 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
         private void OnUpdateTicking(object? sender, UpdateTickingEventArgs e)
         {
-            if (Game1.player is null) {
+            // FIX: Check if location is null to prevent FishingInfo constructor crash
+            if (Game1.player is null || Game1.player.currentLocation is null)
+            {
                 return;
             }
 

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TehPers/StardewValleyMods/master/docs/TehPers.FishingOverhaul/schemas/contentPacks/content.schema.json",
+  "AddFish": [
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Ridge_Bluegill",
+      "AvailabilityInfo": { "BaseChance": 0.35, "IncludeLocations": [ "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_RidgeFalls" ], "Seasons": [ "Spring", "Fall", "Winter" ], "StartTime": 600, "EndTime": 1900 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Cutthroat_Trout",
+      "AvailabilityInfo": { "BaseChance": 0.35, "IncludeLocations": [ "Custom_Ridgeside_RidgesideVillage", "Custom_Ridgeside_SummitFarm", "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_Ridge", "Custom_Ridgeside_RidgeFalls" ], "Seasons": [ "Spring", "Summer", "Fall" ], "StartTime": 600, "EndTime": 2100 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Ridgeside_Bass",
+      "AvailabilityInfo": { "BaseChance": 0.35, "IncludeLocations": [ "Custom_Ridgeside_RidgesideVillage", "Custom_Ridgeside_SummitFarm", "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_Ridge", "Custom_Ridgeside_RidgeFalls" ], "Seasons": [ "Spring" ], "StartTime": 600, "EndTime": 2500 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Skulpin_Fish",
+      "AvailabilityInfo": { "BaseChance": 0.35, "IncludeLocations": [ "Custom_Ridgeside_RidgesideVillage", "Custom_Ridgeside_SummitFarm", "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_Ridge", "Custom_Ridgeside_RidgeFalls" ], "Seasons": [ "Summer", "Fall", "Winter" ], "StartTime": 600, "EndTime": 2000 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Mountain_Redbelly_Dace",
+      "AvailabilityInfo": { "BaseChance": 0.35, "IncludeLocations": [ "Custom_Ridgeside_RidgesideVillage", "Custom_Ridgeside_SummitFarm", "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_Ridge", "Custom_Ridgeside_RidgeFalls" ], "Seasons": [ "Spring" ], "StartTime": 600, "EndTime": 1900 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Mountain_Whitefish",
+      "AvailabilityInfo": { "BaseChance": 0.35, "IncludeLocations": [ "Custom_Ridgeside_Ridge" ], "Seasons": [ "Spring" ], "StartTime": 600, "EndTime": 1900 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Caped_Tree_Frog",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_Ridge", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Summer", "Fall" ], "StartTime": 700, "EndTime": 1200 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Harvester_Trout",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgesideVillage", "Custom_Ridgeside_SummitFarm", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Fall", "Winter" ], "StartTime": 800, "EndTime": 1600 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Pebble_Back_Crab",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Summer", "Winter" ], "StartTime": 1500, "EndTime": 2200 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Bladetail_Sturgeon",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_Ridge", "Custom_Ridgeside_RidgeFalls", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Summer", "Fall", "Winter" ], "StartTime": 1200, "EndTime": 1600 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Cardia_Septal_Jellyfish",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Fall", "Winter" ], "StartTime": 2000, "EndTime": 2600 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Crimson_Spiked_Clam",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgeForest", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Summer", "Winter" ], "StartTime": 1000, "EndTime": 1600 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Fairytale_Lionfish",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgeFalls", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Summer", "Fall" ], "StartTime": 1100, "EndTime": 2000 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Fixer_Eel",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgesideVillage", "Custom_Ridgeside_SummitFarm", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Summer", "Fall", "Winter" ], "StartTime": 1400, "EndTime": 1900 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Golden_Rose_Fin",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgeFalls", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Fall", "Winter" ], "StartTime": 700, "EndTime": 1900 }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Lullaby_Carp",
+      "AvailabilityInfo": { "BaseChance": 0.4, "IncludeLocations": [ "Custom_Ridgeside_RidgeFalls", "Custom_Ridgeside_RidgePond" ], "Seasons": [ "Spring", "Summer", "Winter" ], "StartTime": 1500, "EndTime": 2600 }
+    }
+  ]
+}

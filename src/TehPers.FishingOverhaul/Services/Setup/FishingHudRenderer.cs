@@ -37,7 +37,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
             this.hudConfig = hudConfig ?? throw new ArgumentNullException(nameof(hudConfig));
             this.namespaceRegistry = namespaceRegistry;
             this.whitePixel = new(Game1.graphics.GraphicsDevice, 1, 1);
-            this.whitePixel.SetData(new[] {Color.White});
+            this.whitePixel.SetData(new[] { Color.White });
         }
 
         public void Setup()
@@ -89,7 +89,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
             // Draw streak chances
             var streakText = this.helper.Translation.Get(
                 "text.streak",
-                new {streak = this.fishingApi.GetStreak(farmer)}
+                new { streak = this.fishingApi.GetStreak(farmer) }
             );
             e.SpriteBatch.DrawStringWithShadow(
                 font,
@@ -105,7 +105,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
             var treasureChance = this.fishingApi.GetChanceForTreasure(fishingInfo);
             var treasureText = this.helper.Translation.Get(
                 "text.treasure",
-                new {chance = $"{treasureChance:P2}"}
+                new { chance = $"{treasureChance:P2}" }
             );
             e.SpriteBatch.DrawStringWithShadow(
                 font,
@@ -122,7 +122,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
             var trashChance = fishChances.Count == 0 ? 1.0 : 1.0 - chanceForFish;
             var trashText = this.helper.Translation.Get(
                 "text.trash",
-                new {chance = $"{trashChance:P2}"}
+                new { chance = $"{trashChance:P2}" }
             );
             e.SpriteBatch.DrawStringWithShadow(font, trashText, boxBottomLeft, normalTextColor, 1F);
             boxWidth = Math.Max(boxWidth, font.MeasureString(trashText).X);
@@ -155,19 +155,47 @@ namespace TehPers.FishingOverhaul.Services.Setup
                 var (entryKey, textColor) = displayedEntry.Value;
                 var chance = displayedEntry.Weight;
 
-                // Draw fish icon
-                var lineWidth = 0f;
+                // 1. Get fish item and name
+                Item? fishItem = null;
+
+                // CORRECTION: 'var' au lieu de 'string' pour satisfaire IDE0007
                 var fishName = this.helper.Translation.Get("text.fish.unknownName", new { key = entryKey.ToString() }).ToString();
+
                 if (this.namespaceRegistry.TryGetItemFactory(entryKey, out var factory))
                 {
-                    var fishItem = factory.Create();
+                    fishItem = factory.Create();
                     fishName = fishItem.DisplayName;
+                }
 
-                    const float iconScale = 0.5f;
-                    const float iconSize = 64f * iconScale;
+                // 2. Prepare text
+                var fishText = this.helper.Translation.Get(
+                    "text.fish",
+                    new
+                    {
+                        name = fishName,
+                        chance = $"{chance * 100.0:F2}"
+                    }
+                ).ToString();
+
+                // 3. Calculate Dimensions & Spacing
+                const float iconScale = 0.5f;
+                const float iconSize = 64f * iconScale; // 32px
+                const float iconSpacing = 5f;           // 5px spacing between image and text
+
+                var (textWidth, textHeight) = font.MeasureString(fishText);
+                var hasIcon = fishItem != null;
+
+                // Row height is max of text or icon height
+                var rowHeight = Math.Max(textHeight, hasIcon ? iconSize : 0f);
+                var currentX = 0f;
+
+                // 4. Draw Fish Icon (Centered Vertically)
+                if (hasIcon && fishItem != null)
+                {
+                    var iconY = (rowHeight - iconSize) / 2f;
                     fishItem.DrawInMenuCorrected(
                         e.SpriteBatch,
-                        boxBottomLeft,
+                        boxBottomLeft + new Vector2(currentX, iconY),
                         iconScale,
                         1F,
                         0.9F,
@@ -177,33 +205,25 @@ namespace TehPers.FishingOverhaul.Services.Setup
                         new TopLeftDrawOrigin()
                     );
 
-                    lineWidth += iconSize;
-                    lineHeight = Math.Max(lineHeight, iconSize);
+                    currentX += iconSize + iconSpacing;
                 }
 
-                // Draw chance
-                var fishText = this.helper.Translation.Get(
-                    "text.fish",
-                    new
-                    {
-                        name = fishName,
-                        chance = $"{chance * 100.0:F2}"
-                    }
-                );
+                // 5. Draw Text (Centered Vertically)
+                // Center the text within the rowHeight. This pushes the text down to align with the image center.
+                var textY = (rowHeight - textHeight) / 2f;
                 e.SpriteBatch.DrawStringWithShadow(
                     font,
                     fishText,
-                    boxBottomLeft + new Vector2(lineWidth, 0),
+                    boxBottomLeft + new Vector2(currentX, textY),
                     textColor,
                     1F
                 );
-                var (textWidth, textHeight) = font.MeasureString(fishText);
-                lineWidth += textWidth;
-                lineHeight = Math.Max(lineHeight, textHeight);
 
-                // Update background box
-                boxWidth = Math.Max(boxWidth, lineWidth);
-                boxBottomLeft += new Vector2(0, lineHeight);
+                currentX += textWidth;
+
+                // 6. Update Layout
+                boxWidth = Math.Max(boxWidth, currentX);
+                boxBottomLeft += new Vector2(0, rowHeight);
             }
 
             // Draw 'more fish' text
@@ -211,7 +231,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
             {
                 var moreFishText = this.helper.Translation.Get(
                         "text.fish.more",
-                        new {quantity = fishChances.Count - maxDisplayedFish}
+                        new { quantity = fishChances.Count - maxDisplayedFish }
                     )
                     .ToString();
                 e.SpriteBatch.DrawStringWithShadow(

@@ -177,9 +177,6 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
             customBobber.StateChanged += (_, state) =>
             {
-                // CORRECTION ERREUR CS0019 : Comparaison explicite des propriétés au lieu du tuple
-                // On suppose ici que MinigameState a des propriétés IsPerfect (bool) et Treasure (TreasureState)
-                // Si les noms diffèrent, il faudra ajuster (ex: state.Perfect, state.TreasureState, etc.)
                 if (!state.IsPerfect && state.Treasure == TreasureState.NotCaught)
                 {
                     if (this.fishConfig.GetQualityIncrease(initialStreak) > 0)
@@ -226,6 +223,33 @@ namespace TehPers.FishingOverhaul.Services.Setup
             var newState = new FishingState.Caught(fishingInfo, info);
             this.fishingTracker.ActiveFisherData[fishingInfo.User] = new(rod, newState);
 
+            if (item == null)
+            {
+                this.monitor.Log("CatchItem called with null item. Defaulting to Trash.", LogLevel.Error);
+                item = ItemRegistry.Create("(O)168", 1);
+            }
+
+            var itemId = item.QualifiedItemId ?? "(O)168";
+
+            // FIX: Safely try to set whichFish using Reflection with null checks
+            try
+            {
+                var field = this.helper.Reflection.GetField<NetString>(rod, "whichFish");
+                if (field != null)
+                {
+                    var netString = field.GetValue();
+                    if (netString != null)
+                    {
+                        netString.Value = itemId;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Silence common errors if it doesn't break game flow
+                this.monitor.LogOnce($"Failed to set whichFish (harmless if fishing works): {ex.Message}", LogLevel.Trace);
+            }
+
             if (info is CatchInfo.FishCatch(_, _, _, var fishSize, var isLegendary, var fishQuality, var fishDifficulty, var (isPerfect, treasureState), _, var numberOfFishCaught))
             {
                 if (item is SObject obj)
@@ -238,10 +262,6 @@ namespace TehPers.FishingOverhaul.Services.Setup
                 rod.treasureCaught = wasTreasureCaught;
                 rod.fishSize = fishSize;
                 rod.fishQuality = Math.Max(fishQuality, 0);
-
-                // CORRECTION ERREUR CS1061: Utilisation de la Reflection pour éviter l'erreur de typage ItemMetadata
-                this.helper.Reflection.GetField<NetString>(rod, "whichFish").GetValue().Value = item.QualifiedItemId;
-
                 rod.fromFishPond = fromFishPond;
                 rod.numberOfFishCaught = numberOfFishCaught;
 
@@ -260,11 +280,6 @@ namespace TehPers.FishingOverhaul.Services.Setup
                 rod.treasureCaught = false;
                 rod.fishSize = -1;
                 rod.fishQuality = -1;
-
-                // CORRECTION ERREUR CS1061
-                var trashId = item.QualifiedItemId ?? "(O)168";
-                this.helper.Reflection.GetField<NetString>(rod, "whichFish").GetValue().Value = trashId;
-
                 rod.fromFishPond = fromFishPond;
                 rod.numberOfFishCaught = 1;
             }
@@ -278,8 +293,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
             };
             onCatch?.OnCatch(this.fishingApi, info);
 
-            // FIX: Use ItemRegistry to fetch the correct texture/sourceRect
-            var itemData = ItemRegistry.GetData(item.QualifiedItemId);
+            var itemData = ItemRegistry.GetData(itemId);
             var textureName = itemData?.GetTextureName() ?? "Maps\\springobjects";
             var sourceRect = itemData?.GetSourceRect() ?? new Rectangle(0, 0, 16, 16);
 
@@ -394,16 +408,32 @@ namespace TehPers.FishingOverhaul.Services.Setup
                 return;
             }
 
-            (string itemId, int fishSize, bool fromFishPond, int stack)? caughtParts = info switch
+            string? itemId = null;
+            var fishSize = -1;
+            var fromFishPond = false;
+            var stack = 1;
+            var hasData = false;
+
+            if (info is CatchInfo.FishCatch fishCatch && fishCatch.Item is SObject fishObj)
             {
-                CatchInfo.FishCatch { Item: SObject { itemId: var itemId, Stack: var stack }, FishSize: var fishSize, FromFishPond: var fromFishPond } => (itemId.Value, fishSize, fromFishPond, stack),
-                CatchInfo.TrashCatch { Item: SObject { itemId: var itemId, Stack: var stack }, FromFishPond: var fromFishPond } => (itemId.Value, 0, fromFishPond, stack),
-                _ => null,
-            };
+                itemId = fishObj.ItemId;
+                fishSize = fishCatch.FishSize;
+                fromFishPond = fishCatch.FromFishPond;
+                stack = fishObj.Stack;
+                hasData = true;
+            }
+            else if (info is CatchInfo.TrashCatch trashCatch && trashCatch.Item is SObject trashObj)
+            {
+                itemId = trashObj.ItemId;
+                fishSize = 0;
+                fromFishPond = trashCatch.FromFishPond;
+                stack = trashObj.Stack;
+                hasData = true;
+            }
 
             if (!Game1.isFestival())
             {
-                if (caughtParts is var (itemId, fishSize, fromFishPond, stack))
+                if (hasData && itemId != null)
                 {
                     rod.recordSize = user.caughtFish(itemId, fishSize, fromFishPond, stack);
                 }
@@ -411,7 +441,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
             }
             else if (user.currentLocation.currentEvent is { } currentEvent)
             {
-                if (caughtParts is var (itemId, fishSize, _, _))
+                if (hasData && itemId != null)
                 {
                     currentEvent.caughtFish(itemId, fishSize, user);
                 }
@@ -553,7 +583,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
                                 }
                                 else
                                 {
-                                    patcher.CatchItem(__instance, new CatchInfo.TrashCatch(fishingInfo, trashEntry, new SObject("168", 1), fromFishPond));
+                                    patcher.CatchItem(__instance, new CatchInfo.TrashCatch(fishingInfo, trashEntry, ItemRegistry.Create("(O)168", 1), fromFishPond));
                                 }
                                 return false;
 

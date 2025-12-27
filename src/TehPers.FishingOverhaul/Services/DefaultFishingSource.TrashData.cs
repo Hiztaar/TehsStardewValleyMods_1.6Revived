@@ -13,7 +13,6 @@ namespace TehPers.FishingOverhaul.Services
         {
             return new(this.manifest) { AddTrash = GenerateTrashData().ToImmutableArray() };
 
-            // Correction Avertissement IDE0062: Fonction locale rendue statique
             static IEnumerable<TrashEntry> GenerateTrashData()
             {
                 // Joja cola
@@ -90,10 +89,7 @@ namespace TehPers.FishingOverhaul.Services
                             X = new() { LessThan = 6 },
                             Y = new() { GreaterThan = 48 },
                         },
-                        When = new Dictionary<string, string?>
-                        {
-                            ["TehPers.FishingOverhaul/GoldenWalnutCount |ExampleMod.Token"] = "0"
-                        }.ToImmutableDictionary(),
+                        // FIX: Removed broken token condition that caused crashes
                     }
                 );
 

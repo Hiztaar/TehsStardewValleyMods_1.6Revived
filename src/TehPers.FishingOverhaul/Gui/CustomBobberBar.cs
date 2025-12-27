@@ -18,7 +18,6 @@ namespace TehPers.FishingOverhaul.Gui
     internal sealed class CustomBobberBar : BobberBar
     {
         private readonly IReflectedField<bool> perfectField;
-
         private readonly IReflectedField<SparklingText?> sparkleTextField;
 
         private readonly FishEntry fishEntry;
@@ -33,19 +32,8 @@ namespace TehPers.FishingOverhaul.Gui
         private MinigameState state;
         private bool notifiedCatch;
 
-        /// <summary>
-        /// Invoked whenever a fish is caught.
-        /// </summary>
         public event EventHandler<CatchInfo.FishCatch>? CatchFish;
-
-        /// <summary>
-        /// Invoked whenever a perfect streak is lost.
-        /// </summary>
         public event EventHandler<MinigameState>? StateChanged;
-
-        /// <summary>
-        /// Invoked whenever the fish is not caught.
-        /// </summary>
         public event EventHandler? LostFish;
 
         public CustomBobberBar(
@@ -62,12 +50,14 @@ namespace TehPers.FishingOverhaul.Gui
             bool fromFishPond,
             bool isBossFish = false
         )
-            : base("0", fishSizePercent, treasure, bobbers, fishingInfo.SetFlagOnCatch, isBossFish)
+            // FIX 1: Pass the REAL Fish ID to the base constructor.
+            // This ensures Vanilla initializes the correct movement timers/patterns from the start.
+            // We use "142" (Carp) as a fallback if null to ensure valid physics init.
+            : base(fishItem?.ItemId ?? "142", fishSizePercent, treasure, bobbers, fishingInfo.SetFlagOnCatch, isBossFish)
         {
             _ = helper ?? throw new ArgumentNullException(nameof(helper));
             this.fishConfig = fishConfig ?? throw new ArgumentNullException(nameof(fishConfig));
-            this.treasureConfig =
-                treasureConfig ?? throw new ArgumentNullException(nameof(treasureConfig));
+            this.treasureConfig = treasureConfig ?? throw new ArgumentNullException(nameof(treasureConfig));
             this.fishingInfo = fishingInfo ?? throw new ArgumentNullException(nameof(fishingInfo));
             this.fishEntry = fishEntry;
             this.fishTraits = fishTraits ?? throw new ArgumentNullException(nameof(fishTraits));
@@ -92,11 +82,10 @@ namespace TehPers.FishingOverhaul.Gui
             this.minFishSize = minFishSize;
             this.fishSize = fishSize;
 
-            // Track other information (not all tracked by vanilla)
             this.fromFishPond = fromFishPond;
             this.bossFish = fishTraits.IsLegendary;
 
-            // Adjust quality to be increased by streak
+            // Adjust quality
             this.fishQuality = fishSizePercent switch
             {
                 < 0.33f => 0,
@@ -104,8 +93,7 @@ namespace TehPers.FishingOverhaul.Gui
                 _ => 2,
             };
 
-            // Quality bobber
-            if (bobbers.Contains("877"))
+            if (bobbers.Contains("877")) // Quality Bobber
             {
                 this.fishQuality += 1;
                 if (this.fishQuality > 2)
@@ -114,14 +102,20 @@ namespace TehPers.FishingOverhaul.Gui
                 }
             }
 
-            // Beginner rod
-            if (fishingInfo.User.CurrentTool is FishingRod { UpgradeLevel: 1 })
+            // FIX 2: Restore Difficulty Scaling
+            this.difficulty = fishTraits.DartFrequency;
+            if (this.bossFish)
             {
+                this.difficulty *= 1.1f; // Vanilla 1.1x multiplier for bosses
+            }
+
+            if (fishingInfo.User.CurrentTool is FishingRod { UpgradeLevel: 1 }) // Beginner Rod Cap
+            {
+                this.difficulty = Math.Min(40f, this.difficulty);
                 this.fishQuality = 0;
             }
 
-            // Adjust fish difficulty
-            this.difficulty = fishTraits.DartFrequency;
+            // Set Motion Type
             this.motionType = fishTraits.DartBehavior switch
             {
                 DartBehavior.Mixed => BobberBar.mixed,
@@ -129,16 +123,13 @@ namespace TehPers.FishingOverhaul.Gui
                 DartBehavior.Smooth => BobberBar.smooth,
                 DartBehavior.Sink => BobberBar.sink,
                 DartBehavior.Floater => BobberBar.floater,
-                _ => throw new ArgumentOutOfRangeException(
-                    nameof(fishTraits),
-                    "Invalid dart behavior."
-                )
+                _ => throw new ArgumentOutOfRangeException(nameof(fishTraits), "Invalid dart behavior.")
             };
         }
 
         public override void update(GameTime time)
         {
-            // Speed warp on catching fish
+            // Speed warp logic
             var delta = this.distanceFromCatching - this.lastDistanceFromCatching;
             var mult = delta switch
             {
@@ -149,7 +140,7 @@ namespace TehPers.FishingOverhaul.Gui
             this.distanceFromCatching = this.lastDistanceFromCatching + delta * mult;
             this.lastDistanceFromCatching = this.distanceFromCatching;
 
-            // Speed warp on catching treasure
+            // Treasure logic
             delta = this.treasureCatchLevel - this.lastTreasureCatchLevel;
             mult = delta switch
             {
@@ -161,36 +152,31 @@ namespace TehPers.FishingOverhaul.Gui
             this.lastTreasureCatchLevel = this.treasureCatchLevel;
 
             var perfect = this.perfectField.GetValue();
+            var newState = new MinigameState(perfect, (this.treasure, this.treasureCaught) switch
+            {
+                (false, _) => TreasureState.None,
+                (_, false) => TreasureState.NotCaught,
+                (_, true) => TreasureState.Caught,
+            });
 
-            // Update state
-            var newState = new MinigameState(
-                perfect,
-                (this.treasure, this.treasureCaught) switch
-                {
-                    (false, _) => TreasureState.None,
-                    (_, false) => TreasureState.NotCaught,
-                    (_, true) => TreasureState.Caught,
-                }
-            );
             if (this.state != newState)
             {
                 this.OnStateChanged(newState);
                 this.state = newState;
             }
 
-            // Override post-catch logic
+            // Post-catch logic
             if (this.fadeOut)
             {
                 if (this.scale <= 0.05f)
                 {
-                    // Check for wild bait
                     var caughtDouble = !this.bossFish
                         && Game1.player.CurrentTool is FishingRod { attachments: { } attachments }
                         && attachments[0]?.ParentSheetIndex is 774
                         && Game1.random.NextDouble() < 0.25 + Game1.player.DailyLuck / 2.0;
+
                     if (this.distanceFromCatching > 0.9 && Game1.player.CurrentTool is FishingRod)
                     {
-                        // Notify that a fish was caught
                         var catchInfo = new CatchInfo.FishCatch(
                             this.fishingInfo,
                             this.fishEntry,
@@ -212,7 +198,6 @@ namespace TehPers.FishingOverhaul.Gui
                         {
                             rod.doneFishing(Game1.player, true);
                         }
-
                         this.OnLostFish();
                     }
 
@@ -222,7 +207,6 @@ namespace TehPers.FishingOverhaul.Gui
                 }
             }
 
-            // Base call
             base.update(time);
         }
 
@@ -230,10 +214,8 @@ namespace TehPers.FishingOverhaul.Gui
         {
             if (this.distanceFromCatching <= 0.9)
             {
-                // Failed to catch fish
                 this.OnLostFish();
             }
-
             base.emergencyShutDown();
         }
 
@@ -241,231 +223,59 @@ namespace TehPers.FishingOverhaul.Gui
         {
             Game1.StartWorldDrawInUI(b);
 
-            b.Draw(
-                Game1.mouseCursors,
-                new Vector2(
-                    this.xPositionOnScreen - (this.flipBubble ? 44 : 20) + 104,
-                    this.yPositionOnScreen - 16 + 314
-                )
-                + this.everythingShake,
-                new Rectangle(652, 1685, 52, 157),
-                Color.White * 0.6f * this.scale,
-                0.0f,
-                new Vector2(26f, 78.5f) * this.scale,
-                4f * this.scale,
-                this.flipBubble ? SpriteEffects.FlipHorizontally : SpriteEffects.None,
-                1f / 1000f
-            );
-            b.Draw(
-                Game1.mouseCursors,
-                new Vector2(this.xPositionOnScreen + 70, this.yPositionOnScreen + 296)
-                + this.everythingShake,
-                new Rectangle(644, 1999, 37, 150),
-                Color.White * this.scale,
-                0.0f,
-                new Vector2(18.5f, 74f) * this.scale,
-                4f * this.scale,
-                SpriteEffects.None,
-                0.01f
-            );
+            // Background
+            b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen - (this.flipBubble ? 44 : 20) + 104, this.yPositionOnScreen - 16 + 314) + this.everythingShake, new Rectangle(652, 1685, 52, 157), Color.White * 0.6f * this.scale, 0.0f, new Vector2(26f, 78.5f) * this.scale, 4f * this.scale, this.flipBubble ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 1f / 1000f);
+            b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 70, this.yPositionOnScreen + 296) + this.everythingShake, new Rectangle(644, 1999, 37, 150), Color.White * this.scale, 0.0f, new Vector2(18.5f, 74f) * this.scale, 4f * this.scale, SpriteEffects.None, 0.01f);
 
             if (Math.Abs(this.scale - 1.0) < 0.001)
             {
-                var color = this.bobberInBar
-                    ? Color.White
-                    : Color.White
-                    * 0.25f
-                    * ((float)Math.Round(
-                            Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 100.0),
-                            2
-                        )
-                        + 2f);
+                var color = this.bobberInBar ? Color.White : Color.White * 0.25f * ((float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 100.0), 2) + 2f);
 
-                // Draw background and components
-                b.Draw(
-                    Game1.mouseCursors,
-                    new Vector2(
-                        this.xPositionOnScreen + 64,
-                        this.yPositionOnScreen + 12 + (int)this.bobberBarPos
-                    )
-                    + this.barShake
-                    + this.everythingShake,
-                    new Rectangle(682, 2078, 9, 2),
-                    color,
-                    0.0f,
-                    Vector2.Zero,
-                    4f,
-                    SpriteEffects.None,
-                    0.89f
-                );
-                b.Draw(
-                    Game1.mouseCursors,
-                    new Vector2(
-                        this.xPositionOnScreen + 64,
-                        this.yPositionOnScreen + 12 + (int)this.bobberBarPos + 8
-                    )
-                    + this.barShake
-                    + this.everythingShake,
-                    new Rectangle(682, 2081, 9, 1),
-                    color,
-                    0.0f,
-                    Vector2.Zero,
-                    new Vector2(4f, this.bobberBarHeight - 16),
-                    SpriteEffects.None,
-                    0.89f
-                );
-                b.Draw(
-                    Game1.mouseCursors,
-                    new Vector2(
-                        this.xPositionOnScreen + 64,
-                        this.yPositionOnScreen + 12 + (int)this.bobberBarPos + this.bobberBarHeight - 8
-                    )
-                    + this.barShake
-                    + this.everythingShake,
-                    new Rectangle(682, 2085, 9, 2),
-                    color,
-                    0.0f,
-                    Vector2.Zero,
-                    4f,
-                    SpriteEffects.None,
-                    0.89f
-                );
-                b.Draw(
-                    Game1.staminaRect,
-                    new Rectangle(
-                        this.xPositionOnScreen + 124,
-                        this.yPositionOnScreen + 4 + (int)(580.0 * (1.0 - this.distanceFromCatching)),
-                        16,
-                        (int)(580.0 * this.distanceFromCatching)
-                    ),
-                    Utility.getRedToGreenLerpColor(this.distanceFromCatching)
-                );
-                b.Draw(
-                    Game1.mouseCursors,
-                    new Vector2(this.xPositionOnScreen + 18, this.yPositionOnScreen + 514)
-                    + this.everythingShake,
-                    new Rectangle(257, 1990, 5, 10),
-                    Color.White,
-                    this.reelRotation,
-                    new(2f, 10f),
-                    4f,
-                    SpriteEffects.None,
-                    0.9f
-                );
+                // Bar Components
+                b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.bobberBarPos) + this.barShake + this.everythingShake, new Rectangle(682, 2078, 9, 2), color, 0.0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
+                b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.bobberBarPos + 8) + this.barShake + this.everythingShake, new Rectangle(682, 2081, 9, 1), color, 0.0f, Vector2.Zero, new Vector2(4f, this.bobberBarHeight - 16), SpriteEffects.None, 0.89f);
+                b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.bobberBarPos + this.bobberBarHeight - 8) + this.barShake + this.everythingShake, new Rectangle(682, 2085, 9, 2), color, 0.0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
 
-                // Draw treasure
-                b.Draw(
-                    Game1.mouseCursors,
-                    new Vector2(
-                        this.xPositionOnScreen + 64 + 18,
-                        this.yPositionOnScreen + 12 + 24 + this.treasurePosition
-                    )
-                    + this.treasureShake
-                    + this.everythingShake,
-                    new Rectangle(638, 1865, 20, 24),
-                    Color.White,
-                    0.0f,
-                    new(10f, 10f),
-                    2f * this.treasureScale,
-                    SpriteEffects.None,
-                    0.85f
-                );
+                // Progress Bar
+                b.Draw(Game1.staminaRect, new Rectangle(this.xPositionOnScreen + 124, this.yPositionOnScreen + 4 + (int)(580.0 * (1.0 - this.distanceFromCatching)), 16, (int)(580.0 * this.distanceFromCatching)), Utility.getRedToGreenLerpColor(this.distanceFromCatching));
+
+                // Reel
+                b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 18, this.yPositionOnScreen + 514) + this.everythingShake, new Rectangle(257, 1990, 5, 10), Color.White, this.reelRotation, new(2f, 10f), 4f, SpriteEffects.None, 0.9f);
+
+                // Treasure
+                b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64 + 18, this.yPositionOnScreen + 12 + 24 + this.treasurePosition) + this.treasureShake + this.everythingShake, new Rectangle(638, 1865, 20, 24), Color.White, 0.0f, new(10f, 10f), 2f * this.treasureScale, SpriteEffects.None, 0.85f);
                 if (this.treasureCatchLevel > 0.0 && !this.treasureCaught)
                 {
-                    b.Draw(
-                        Game1.staminaRect,
-                        new Rectangle(
-                            this.xPositionOnScreen + 64,
-                            this.yPositionOnScreen + 12 + (int)this.treasurePosition,
-                            40,
-                            8
-                        ),
-                        Color.DimGray * 0.5f
-                    );
-                    b.Draw(
-                        Game1.staminaRect,
-                        new Rectangle(
-                            this.xPositionOnScreen + 64,
-                            this.yPositionOnScreen + 12 + (int)this.treasurePosition,
-                            (int)(this.treasureCatchLevel * 40.0),
-                            8
-                        ),
-                        Color.Orange
-                    );
+                    b.Draw(Game1.staminaRect, new Rectangle(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.treasurePosition, 40, 8), Color.DimGray * 0.5f);
+                    b.Draw(Game1.staminaRect, new Rectangle(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.treasurePosition, (int)(this.treasureCatchLevel * 40.0), 8), Color.Orange);
                 }
 
-                // Draw fish
-                var position = new Vector2(
-                    this.xPositionOnScreen + 64 + 18,
-                    this.yPositionOnScreen + this.bobberPosition + 12 + 24
-                );
+                // Fish
+                var position = new Vector2(this.xPositionOnScreen + 64 + 18, this.yPositionOnScreen + this.bobberPosition + 12 + 24);
                 if (this.fishConfig.ShowFishInMinigame)
                 {
-                    this.fishItem.DrawInMenuCorrected(
-                        b,
-                        position + this.fishShake + this.everythingShake,
-                        0.5f,
-                        1f,
-                        0.88f,
-                        StackDrawType.Hide,
-                        Color.White,
-                        false,
-                        new CenterDrawOrigin()
-                    );
+                    this.fishItem.DrawInMenuCorrected(b, position + this.fishShake + this.everythingShake, 0.5f, 1f, 0.88f, StackDrawType.Hide, Color.White, false, new CenterDrawOrigin());
                 }
                 else
                 {
-                    b.Draw(
-                        Game1.mouseCursors,
-                        position + this.fishShake + this.everythingShake,
-                        new Rectangle(614 + (this.fishTraits.IsLegendary ? 20 : 0), 1840, 20, 20),
-                        Color.White,
-                        0.0f,
-                        new(10f, 10f),
-                        2f,
-                        SpriteEffects.None,
-                        0.88f
-                    );
+                    b.Draw(Game1.mouseCursors, position + this.fishShake + this.everythingShake, new Rectangle(614 + (this.fishTraits.IsLegendary ? 20 : 0), 1840, 20, 20), Color.White, 0.0f, new(10f, 10f), 2f, SpriteEffects.None, 0.88f);
                 }
 
-                // Draw sparkle text
+                // Sparkles
                 var sparkleText = this.sparkleTextField.GetValue();
                 sparkleText?.draw(b, new(this.xPositionOnScreen - 16, this.yPositionOnScreen - 64));
             }
 
             if (Game1.player.fishCaught?.Any() == false)
             {
-                var position = new Vector2(
-                    this.xPositionOnScreen + (this.flipBubble ? this.width + 64 + 8 : -200),
-                    this.yPositionOnScreen + 192
-                );
+                var position = new Vector2(this.xPositionOnScreen + (this.flipBubble ? this.width + 64 + 8 : -200), this.yPositionOnScreen + 192);
                 if (!Game1.options.gamepadControls)
                 {
-                    b.Draw(
-                        Game1.mouseCursors,
-                        position,
-                        new Rectangle(644, 1330, 48, 69),
-                        Color.White,
-                        0.0f,
-                        Vector2.Zero,
-                        4f,
-                        SpriteEffects.None,
-                        0.88f
-                    );
+                    b.Draw(Game1.mouseCursors, position, new Rectangle(644, 1330, 48, 69), Color.White, 0.0f, Vector2.Zero, 4f, SpriteEffects.None, 0.88f);
                 }
                 else
                 {
-                    b.Draw(
-                        Game1.controllerMaps,
-                        position,
-                        Utility.controllerMapSourceRect(new(681, 0, 96, 138)),
-                        Color.White,
-                        0.0f,
-                        Vector2.Zero,
-                        2f,
-                        SpriteEffects.None,
-                        0.88f
-                    );
+                    b.Draw(Game1.controllerMaps, position, Utility.controllerMapSourceRect(new(681, 0, 96, 138)), Color.White, 0.0f, Vector2.Zero, 2f, SpriteEffects.None, 0.88f);
                 }
             }
 
@@ -478,7 +288,6 @@ namespace TehPers.FishingOverhaul.Gui
             {
                 return;
             }
-
             this.notifiedCatch = true;
             this.CatchFish?.Invoke(this, e);
         }
@@ -489,7 +298,6 @@ namespace TehPers.FishingOverhaul.Gui
             {
                 return;
             }
-
             this.notifiedCatch = true;
             this.LostFish?.Invoke(this, EventArgs.Empty);
         }

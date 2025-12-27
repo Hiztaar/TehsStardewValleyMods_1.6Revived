@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TehPers/StardewValleyMods/master/docs/TehPers.FishingOverhaul/schemas/contentPacks/content.schema.json",
+  "SetFishTraits": {
+    "StardewValley:Object/Rafseazz.RSVCP_Ridge_Bluegill": { "DartFrequency": 20, "DartBehavior": "Smooth", "MinSize": 5, "MaxSize": 30 },
+    "StardewValley:Object/Rafseazz.RSVCP_Cutthroat_Trout": { "DartFrequency": 10, "DartBehavior": "Mixed", "MinSize": 10, "MaxSize": 50 },
+    "StardewValley:Object/Rafseazz.RSVCP_Ridgeside_Bass": { "DartFrequency": 10, "DartBehavior": "Floater", "MinSize": 10, "MaxSize": 30 },
+    "StardewValley:Object/Rafseazz.RSVCP_Skulpin_Fish": { "DartFrequency": 30, "DartBehavior": "Sinker", "MinSize": 20, "MaxSize": 40 },
+    "StardewValley:Object/Rafseazz.RSVCP_Mountain_Redbelly_Dace": { "DartFrequency": 40, "DartBehavior": "Smooth", "MinSize": 10, "MaxSize": 20 },
+    "StardewValley:Object/Rafseazz.RSVCP_Mountain_Whitefish": { "DartFrequency": 50, "DartBehavior": "Mixed", "MinSize": 5, "MaxSize": 30 },
+    "StardewValley:Object/Rafseazz.RSVCP_Caped_Tree_Frog": { "DartFrequency": 30, "DartBehavior": "Dart", "MinSize": 5, "MaxSize": 12 },
+    "StardewValley:Object/Rafseazz.RSVCP_Harvester_Trout": { "DartFrequency": 40, "DartBehavior": "Smooth", "MinSize": 21, "MaxSize": 33 },
+    "StardewValley:Object/Rafseazz.RSVCP_Pebble_Back_Crab": { "DartFrequency": 30, "DartBehavior": "Floater", "MinSize": 5, "MaxSize": 15 },
+    "StardewValley:Object/Rafseazz.RSVCP_Bladetail_Sturgeon": { "DartFrequency": 69, "DartBehavior": "Smooth", "MinSize": 18, "MaxSize": 32 },
+    "StardewValley:Object/Rafseazz.RSVCP_Cardia_Septal_Jellyfish": { "DartFrequency": 69, "DartBehavior": "Mixed", "MinSize": 12, "MaxSize": 20 },
+    "StardewValley:Object/Rafseazz.RSVCP_Crimson_Spiked_Clam": { "DartFrequency": 69, "DartBehavior": "Floater", "MinSize": 21, "MaxSize": 33 },
+    "StardewValley:Object/Rafseazz.RSVCP_Fairytale_Lionfish": { "DartFrequency": 69, "DartBehavior": "Mixed", "MinSize": 18, "MaxSize": 28 },
+    "StardewValley:Object/Rafseazz.RSVCP_Fixer_Eel": { "DartFrequency": 69, "DartBehavior": "Sinker", "MinSize": 17, "MaxSize": 36 },
+    "StardewValley:Object/Rafseazz.RSVCP_Golden_Rose_Fin": { "DartFrequency": 69, "DartBehavior": "Mixed", "MinSize": 8, "MaxSize": 16 },
+    "StardewValley:Object/Rafseazz.RSVCP_Lullaby_Carp": { "DartFrequency": 69, "DartBehavior": "Dart", "MinSize": 9, "MaxSize": 17 },
+    "StardewValley:Object/Rafseazz.RSVCP_Deep_Ridge_Angler": { "DartFrequency": 100, "DartBehavior": "Mixed", "MinSize": 11, "MaxSize": 30, "IsLegendary": true },
+    "StardewValley:Object/Rafseazz.RSVCP_Waterfall_Snakehead": { "DartFrequency": 100, "DartBehavior": "Mixed", "MinSize": 11, "MaxSize": 30, "IsLegendary": true },
+    "StardewValley:Object/Rafseazz.RSVCP_Sockeye_Salmon": { "DartFrequency": 100, "DartBehavior": "Mixed", "MinSize": 11, "MaxSize": 30, "IsLegendary": true }
+  }
+}

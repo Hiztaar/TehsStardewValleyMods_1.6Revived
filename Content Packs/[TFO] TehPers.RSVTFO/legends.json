@@ -1,111 +1,48 @@
 {
   "$schema": "https://raw.githubusercontent.com/TehPers/StardewValleyMods/master/docs/TehPers.FishingOverhaul/schemas/contentPacks/content.schema.json",
-  // This is only needed to mark the fish as legendary. Otherwise it would be loaded from Data/Fish
-  "SetFishTraits": {
-    "JA:Object/Sockeye Salmon": {
-      "DartBehavior": "Mixed",
-      "DartFrequency": 100,
-      "MinSize": 11,
-      "MaxSize": 30,
-      "IsLegendary": true
-    },
-    "JA:Object/Waterfall Snakehead": {
-      "DartBehavior": "Mixed",
-      "DartFrequency": 100,
-      "MinSize": 11,
-      "MaxSize": 30,
-      "IsLegendary": true
-    },
-    "JA:Object/Deep Ridge Angler": {
-      "DartBehavior": "Mixed",
-      "DartFrequency": 100,
-      "MinSize": 11,
-      "MaxSize": 30,
-      "IsLegendary": true
-    }
-  },
-  // Add fish entries
   "AddFish": [
     {
-      // Sockeye salmon
-      "FishKey": "JA:Object/Sockeye Salmon",
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Waterfall_Snakehead",
       "AvailabilityInfo": {
-        "BaseChance": 0.3,
-        "IncludeLocations": ["Custom_Ridgeside_RidgesideVillage"],
-        "Seasons": ["Fall"],
-        "Weathers": ["Rainy"],
-        "MinFishingLevel": 7,
-        "Position": {
-          "X": {
-            "GreaterThanEq": 71,
-            "LessThan": 74
-          },
-          "Y": {
-            "GreaterThanEq": 93,
-            "LessThan": 96
-          }
-        },
-        "When": {
-          "HasFlag |contains=TehPers.RSVTFO/SockeyeSalmon": "false"
-        }
-      },
-      "OnCatch": {
-        "SetFlags": ["TehPers.RSVTFO/SockeyeSalmon"]
-      }
-    },
-    {
-      // Waterfall snakehead
-      "FishKey": "JA:Object/Waterfall Snakehead",
-      "AvailabilityInfo": {
-        "BaseChance": 0.3,
-        "IncludeLocations": ["Custom_Ridgeside_RidgesideFalls"],
-        "Seasons": ["Spring", "Summer"],
+        "BaseChance": 0.1,
+        "IncludeLocations": [ "Custom_Ridgeside_RidgeFalls" ],
+        "Seasons": [ "Spring", "Summer" ],
         "StartTime": 2000,
+        "EndTime": 2600,
         "MinFishingLevel": 7,
-        "Position": {
-          "X": {
-            "GreaterThanEq": 53,
-            "LessThan": 57
-          },
-          "Y": {
-            "GreaterThanEq": 11,
-            "LessThan": 15
-          }
-        },
-        "When": {
-          "HasFlag |contains=TehPers.RSVTFO/WaterfallSnakehead": "false"
-        }
+        "Position": { "X": { "GreaterThanEq": 53, "LessThan": 57 }, "Y": { "GreaterThanEq": 11, "LessThan": 15 } },
+        "When": { "HasFlag |contains=TehPers.RSVTFO/WaterfallSnakehead": "false" }
       },
-      "OnCatch": {
-        "SetFlags": ["TehPers.RSVTFO/WaterfallSnakehead"]
-      }
+      "OnCatch": { "SetFlags": [ "TehPers.RSVTFO/WaterfallSnakehead" ] }
     },
     {
-      // Deep ridge angler
-      "FishKey": "JA:Object/Deep Ridge Angler",
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Deep_Ridge_Angler",
       "AvailabilityInfo": {
-        "BaseChance": 0.3,
-        "IncludeLocations": ["Custom_Ridgeside_RidgesideForest"],
-        "Seasons": ["Winter"],
+        "BaseChance": 0.1,
+        "IncludeLocations": [ "Custom_Ridgeside_RidgeForest" ],
+        "Seasons": [ "Winter" ],
         "StartTime": 1200,
+        "EndTime": 2600,
         "MinFishingLevel": 7,
-        "Position": {
-          "X": {
-            "GreaterThanEq": 67,
-            "LessThan": 72
-          },
-          "Y": {
-            "GreaterThanEq": 30,
-            "LessThan": 36
-          }
-        },
-        "When": {
-          "HasFlag |contains=TehPers.RSVTFO/DeepRidgeAngler": "false"
-        }
+        "Position": { "X": { "GreaterThanEq": 67, "LessThan": 72 }, "Y": { "GreaterThanEq": 30, "LessThan": 36 } },
+        "When": { "HasFlag |contains=TehPers.RSVTFO/DeepRidgeAngler": "false" }
       },
-      "OnCatch": {
-        "SetFlags": ["TehPers.RSVTFO/DeepRidgeAngler"]
-      }
+      "OnCatch": { "SetFlags": [ "TehPers.RSVTFO/DeepRidgeAngler" ] }
+    },
+    {
+      "FishKey": "StardewValley:Object/Rafseazz.RSVCP_Sockeye_Salmon",
+      "AvailabilityInfo": {
+        "BaseChance": 0.1,
+        "IncludeLocations": [ "Custom_Ridgeside_RidgesideVillage" ],
+        "Seasons": [ "Fall" ],
+        "Weathers": [ "Rainy" ],
+        "StartTime": 600,
+        "EndTime": 2600,
+        "MinFishingLevel": 7,
+        "Position": { "X": { "GreaterThanEq": 71, "LessThan": 74 }, "Y": { "GreaterThanEq": 93, "LessThan": 96 } },
+        "When": { "HasFlag |contains=TehPers.RSVTFO/SockeyeSalmon": "false" }
+      },
+      "OnCatch": { "SetFlags": [ "TehPers.RSVTFO/SockeyeSalmon" ] }
     }
   ]
 }
