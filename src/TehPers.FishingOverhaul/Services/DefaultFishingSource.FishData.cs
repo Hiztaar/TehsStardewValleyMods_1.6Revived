@@ -28,19 +28,16 @@ namespace TehPers.FishingOverhaul.Services
                 ["TehPers.FishingOverhaul/SpecialOrderRuleActive"] = "LEGENDARY_FAMILY",
             }.ToImmutableDictionary();
 
-        // Standard Legendary Keys
         private static readonly HashSet<string> legendaryFishIds = new()
         {
             "159", "160", "163", "164", "165"
         };
 
-        // Legendary Family Keys (Qi's Challenge)
         private static readonly HashSet<string> legendaryFamilyIds = new()
         {
             "898", "899", "900", "901", "902"
         };
 
-        // Items defined as 'Fish' in Data/Fish but should be treated as Trash (no minigame)
         private static readonly HashSet<string> trashFishIds = new()
         {
             "152", // Seaweed
@@ -48,19 +45,24 @@ namespace TehPers.FishingOverhaul.Services
             "157"  // White Algae
         };
 
-        [SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Required by signature")]
-        private FishingContent GetDefaultFishData(IMonitor monitor)
+        // Fish IDs to handle manually via loops (to ensure Mine floors work)
+        private static readonly HashSet<string> manualMineFishIds = new()
+        {
+            "158", // Stonefish
+            "161", // Ice Pip
+            "162"  // Lava Eel
+        };
+
+        private FishingContent GetDefaultFishData()
         {
             var fishData = Game1.content.Load<Dictionary<string, string>>("Data\\Fish");
             var locationData = Game1.content.Load<Dictionary<string, LocationData>>("Data\\Locations");
 
             var fishEntries = new List<FishEntry>();
             var fishTraits = new Dictionary<NamespacedKey, FishTraits>();
-
-            // Map for base info (Times, etc from Data/Fish)
             var baseAvailabilities = new Dictionary<NamespacedKey, FishAvailabilityInfo>();
 
-            // --- STEP 1: Parse Data/Fish (Global Traits & Defaults) ---
+            // --- STEP 1: Parse Data/Fish ---
             foreach (var (rawKey, data) in fishData)
             {
                 var parts = data.Split('/');
@@ -69,15 +71,13 @@ namespace TehPers.FishingOverhaul.Services
                     continue;
                 }
 
-                // Create a robust key (Int for vanilla, String for modded)
-                var fishKey = this.GetFishKey(rawKey);
-
-                // SKIP TRASH (Algae/Seaweed)
                 var cleanId = rawKey.StartsWith("(O)") ? rawKey[3..] : rawKey;
                 if (trashFishIds.Contains(cleanId))
                 {
                     continue;
                 }
+
+                var fishKey = this.GetFishKey(rawKey);
 
                 // 1. Traits
                 if (int.TryParse(parts[1], out var difficulty) &&
@@ -96,11 +96,9 @@ namespace TehPers.FishingOverhaul.Services
                         _ => DartBehavior.Mixed
                     };
 
-                    // Detect Legendary Status (Vanilla lists OR Context Tags for SVE/Mods)
                     var isLegendary = legendaryFishIds.Contains(cleanId)
                                       || legendaryFamilyIds.Contains(cleanId);
 
-                    // Check Item Context Tags (New 1.6 Feature for Mod Compatibility)
                     if (!isLegendary)
                     {
                         var qualifiedId = rawKey.StartsWith("(O)") ? rawKey : "(O)" + rawKey;
@@ -111,7 +109,6 @@ namespace TehPers.FishingOverhaul.Services
                         }
                     }
 
-                    // Create traits with IsLegendary flag
                     fishTraits[fishKey] = new FishTraits(difficulty, behavior, minSize, maxSize)
                     {
                         IsLegendary = isLegendary
@@ -137,7 +134,7 @@ namespace TehPers.FishingOverhaul.Services
                 }
             }
 
-            // --- STEP 2: Iterate Data/Locations (Actual Spawn Rules) ---
+            // --- STEP 2: Iterate Data/Locations ---
             foreach (var (locName, locData) in locationData)
             {
                 if (locData.Fish == null)
@@ -152,37 +149,37 @@ namespace TehPers.FishingOverhaul.Services
                         continue;
                     }
 
-                    // SKIP TRASH (Safety check here too)
                     var cleanId = spawnData.ItemId.StartsWith("(O)") ? spawnData.ItemId[3..] : spawnData.ItemId;
+
                     if (trashFishIds.Contains(cleanId))
                     {
                         continue;
                     }
 
-                    var fishKey = this.GetFishKey(spawnData.ItemId);
+                    // SKIP Manual Mine Fish (we add them later)
+                    if (manualMineFishIds.Contains(cleanId) && locName == "UndergroundMine")
+                    {
+                        continue;
+                    }
 
-                    // Skip if not a valid fish (no traits known)
+                    var fishKey = this.GetFishKey(spawnData.ItemId);
                     if (!fishTraits.ContainsKey(fishKey))
                     {
                         continue;
                     }
 
-                    // Get base info or default
                     var info = baseAvailabilities.TryGetValue(fishKey, out var baseAvail)
                         ? baseAvail
                         : new FishAvailabilityInfo(0.5f) { StartTime = 600, EndTime = 2600 };
 
-                    // Apply Location Logic
                     var locations = this.GetLocationNames(locName);
                     info = info with { IncludeLocations = locations };
 
-                    // Parse 1.6 Conditions (Override Base)
                     if (!string.IsNullOrEmpty(spawnData.Condition))
                     {
-                        info = this.ParseConditionString(spawnData.Condition, info);
+                        info = this.ParseConditionString(spawnData.Condition, info, locName);
                     }
 
-                    // Legendary Logic
                     if (legendaryFishIds.Contains(cleanId))
                     {
                         info = info with { When = legendaryBaseConditions };
@@ -196,6 +193,58 @@ namespace TehPers.FishingOverhaul.Services
                 }
             }
 
+            // --- STEP 3: Manual Injections (Fix Mine Fish) ---
+            // We manually loop through floors to ensure availability, bypassing parser issues.
+
+            // 158: Stonefish (Floors 20-60)
+            if (fishTraits.ContainsKey(NamespacedKey.SdvObject(158)))
+            {
+                var locs = new List<string>();
+                for (var i = 20; i < 60; i++)
+                {
+                    locs.Add($"UndergroundMine/{i}");
+                }
+
+                var baseInfo = baseAvailabilities.ContainsKey(NamespacedKey.SdvObject(158))
+                    ? baseAvailabilities[NamespacedKey.SdvObject(158)]
+                    : new FishAvailabilityInfo(0.05f);
+
+                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(158), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
+            }
+
+            // 161: Ice Pip (Floors 60-100)
+            if (fishTraits.ContainsKey(NamespacedKey.SdvObject(161)))
+            {
+                var locs = new List<string>();
+                for (var i = 60; i < 100; i++)
+                {
+                    locs.Add($"UndergroundMine/{i}");
+                }
+
+                var baseInfo = baseAvailabilities.ContainsKey(NamespacedKey.SdvObject(161))
+                    ? baseAvailabilities[NamespacedKey.SdvObject(161)]
+                    : new FishAvailabilityInfo(0.05f);
+
+                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(161), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
+            }
+
+            // 162: Lava Eel (Floors 100-120) + Caldera
+            if (fishTraits.ContainsKey(NamespacedKey.SdvObject(162)))
+            {
+                var locs = new List<string>();
+                for (var i = 100; i <= 120; i++)
+                {
+                    locs.Add($"UndergroundMine/{i}");
+                }
+                locs.Add("Caldera"); // Volcano
+
+                var baseInfo = baseAvailabilities.ContainsKey(NamespacedKey.SdvObject(162))
+                    ? baseAvailabilities[NamespacedKey.SdvObject(162)]
+                    : new FishAvailabilityInfo(0.02f);
+
+                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(162), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
+            }
+
             return new(this.manifest)
             {
                 AddFish = fishEntries.ToImmutableArray(),
@@ -203,20 +252,13 @@ namespace TehPers.FishingOverhaul.Services
             };
         }
 
-        // --- Helpers ---
-
         private NamespacedKey GetFishKey(string rawId)
         {
-            // Remove (O) prefix if present
             var cleanId = rawId.StartsWith("(O)") ? rawId[3..] : rawId;
-
-            // Try to parse as int (Vanilla/Numeric IDs)
             if (int.TryParse(cleanId, out var intId))
             {
                 return NamespacedKey.SdvObject(intId);
             }
-
-            // Fallback to string (Modded IDs like "MyMod.Fish")
             return NamespacedKey.SdvObject(cleanId);
         }
 
@@ -265,16 +307,18 @@ namespace TehPers.FishingOverhaul.Services
             return w == Weathers.None ? Weathers.All : w;
         }
 
-        private FishAvailabilityInfo ParseConditionString(string condition, FishAvailabilityInfo baseInfo)
+        private FishAvailabilityInfo ParseConditionString(string condition, FishAvailabilityInfo baseInfo, string locationName)
         {
-            var conditions = condition.Split('/');
+            var conditions = condition.Split(new[] { '/', ',' }, StringSplitOptions.RemoveEmptyEntries);
 
             var newSeasons = Seasons.None;
             var newWeather = Weathers.None;
-            int? newStart = null;
-            int? newEnd = null;
-            int? newLevel = null;
+            var newLocations = new List<string>();
             var unparsedConditions = new Dictionary<string, string?>();
+
+            var newStart = (int?)null;
+            var newEnd = (int?)null;
+            var newLevel = (int?)null;
 
             foreach (var cond in conditions)
             {
@@ -328,9 +372,35 @@ namespace TehPers.FishingOverhaul.Services
                         }
                         break;
 
+                    case "MINE_LEVEL":
+                        // Keep this for other mine fish (like Ghostfish or modded ones)
+                        if (parts.Length >= 2 && int.TryParse(parts[1], out var startLevel))
+                        {
+                            var endLevel = startLevel;
+                            if (parts.Length >= 3 && int.TryParse(parts[2], out var parsedEnd))
+                            {
+                                endLevel = parsedEnd;
+                            }
+
+                            for (var i = startLevel; i <= endLevel; i++)
+                            {
+                                newLocations.Add($"{locationName}/{i}");
+                            }
+                        }
+                        break;
+
+                    case "IS_PASSIVE_FESTIVAL_OPEN":
+                    case "IS_FESTIVAL_DAY":
+                    case "PLAYER_SPECIAL_ORDER_RULE_ACTIVE":
+                    case "!PLAYER_SPECIAL_ORDER_RULE_ACTIVE":
+                    case "RANDOM":
+                        break;
+
                     default:
-                        // FIX: Pass ALL unknown conditions (like MINE_LEVEL) to the game engine.
-                        unparsedConditions[$"Query: {cond.Trim()}"] = "true";
+                        if (cond.Contains("HasFlag") || cond.Contains("TehPers"))
+                        {
+                            unparsedConditions[$"Query: {cond.Trim()}"] = "true";
+                        }
                         break;
                 }
             }
@@ -342,6 +412,7 @@ namespace TehPers.FishingOverhaul.Services
                 StartTime = newStart ?? baseInfo.StartTime,
                 EndTime = newEnd ?? baseInfo.EndTime,
                 MinFishingLevel = newLevel ?? baseInfo.MinFishingLevel,
+                IncludeLocations = newLocations.Any() ? newLocations.ToImmutableArray() : baseInfo.IncludeLocations,
                 When = unparsedConditions.ToImmutableDictionary()
             };
         }

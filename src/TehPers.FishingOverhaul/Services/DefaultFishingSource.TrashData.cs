@@ -1,9 +1,15 @@
-﻿using System.Collections.Generic;
-using System.Collections.Immutable;
+﻿using StardewModdingAPI;
 using StardewValley;
+using StardewValley.GameData.Locations;
+using System;
+using System.Collections.Generic;
+using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using TehPers.Core.Api.Gameplay;
 using TehPers.Core.Api.Items;
+using TehPers.FishingOverhaul.Api;
 using TehPers.FishingOverhaul.Api.Content;
-using TehPers.FishingOverhaul.Content;
 
 namespace TehPers.FishingOverhaul.Services
 {
@@ -11,135 +17,114 @@ namespace TehPers.FishingOverhaul.Services
     {
         private FishingContent GetDefaultTrashData()
         {
-            return new(this.manifest) { AddTrash = GenerateTrashData().ToImmutableArray() };
+            var fishData = Game1.content.Load<Dictionary<string, string>>("Data\\Fish");
+            var locationData = Game1.content.Load<Dictionary<string, LocationData>>("Data\\Locations");
 
-            static IEnumerable<TrashEntry> GenerateTrashData()
+            var trashEntries = new List<TrashEntry>();
+            var baseAvailabilities = new Dictionary<NamespacedKey, AvailabilityInfo>();
+
+            // --- STEP 1: Parse Base Trash from Data/Fish ---
+            foreach (var (rawKey, data) in fishData)
             {
-                // Joja cola
-                yield return new(
-                    NamespacedKey.SdvObject(167),
-                    new(1.0D) { ExcludeLocations = ImmutableArray.Create("Submarine") }
-                );
-                // Trash
-                yield return new(
-                    NamespacedKey.SdvObject(168),
-                    new(1.0D) { ExcludeLocations = ImmutableArray.Create("Submarine") }
-                );
-                // Driftwood
-                yield return new(
-                    NamespacedKey.SdvObject(169),
-                    new(1.0D) { ExcludeLocations = ImmutableArray.Create("Submarine") }
-                );
-                // Broken Glasses
-                yield return new(
-                    NamespacedKey.SdvObject(170),
-                    new(1.0D) { ExcludeLocations = ImmutableArray.Create("Submarine") }
-                );
-                // Broken CD
-                yield return new(
-                    NamespacedKey.SdvObject(171),
-                    new(1.0D) { ExcludeLocations = ImmutableArray.Create("Submarine") }
-                );
-                // Soggy Newspaper
-                yield return new(
-                    NamespacedKey.SdvObject(172),
-                    new(1.0D) { ExcludeLocations = ImmutableArray.Create("Submarine") }
-                );
+                var parts = data.Split('/');
+                if (parts.Length < 13)
+                {
+                    continue;
+                }
 
-                // RESTORED 1.6 ITEMS (Seaweed, Algae)
-                // Seaweed
-                yield return new(
-                    NamespacedKey.SdvObject(152),
-                    new(0.5D) { IncludeLocations = ImmutableArray.Create("Beach", "IslandWest", "IslandSouth", "IslandSouthEast", "Submarine") }
-                );
-                // Green Algae
-                yield return new(
-                    NamespacedKey.SdvObject(153),
-                    new(0.5D) { ExcludeLocations = ImmutableArray.Create("Beach", "IslandWest", "IslandSouth", "IslandSouthEast", "Submarine") }
-                );
-                // White Algae
-                yield return new(
-                    NamespacedKey.SdvObject(157),
-                    new(1.0D) { IncludeLocations = ImmutableArray.Create("UndergroundMine", "Sewer", "BugLand", "WitchSwamp", "MutantBugLair") }
-                );
+                var cleanId = rawKey.StartsWith("(O)") ? rawKey[3..] : rawKey;
 
-                // Wall Basket (https://stardewvalleywiki.com/Secrets#Basket)
-                yield return new(
-                    NamespacedKey.SdvObject(79),
-                    new(0.5)
+                if (!trashFishIds.Contains(cleanId))
+                {
+                    continue;
+                }
+
+                var itemKey = this.GetFishKey(rawKey);
+
+                if (float.TryParse(parts[10], out var chance) && int.TryParse(parts[12], out var minLevel))
+                {
+                    var baseInfo = new AvailabilityInfo(chance)
                     {
-                        IncludeLocations = ImmutableArray.Create("BusStop"),
-                        When = new Dictionary<string, string?>
-                        {
-                            ["HasFlag |contains=linusBasket"] = "false",
-                            ["HasReadLetter |contains=LinusBasket"] = "true",
-                        }.ToImmutableDictionary(),
-                    }
-                )
-                { OnCatch = new() { SetFlags = ImmutableArray.Create("linusBasket") } };
+                        MinFishingLevel = minLevel,
+                        Seasons = this.ParseSeasons(parts[6]),
+                        Weathers = this.ParseWeathers(parts[7]),
+                    };
 
-                // Golden Walnut (https://stardewvalleywiki.com/Golden_Walnut)
-                yield return new(
-                    NamespacedKey.SdvObject(73),
-                    new(0.5)
-                    {
-                        IncludeLocations = ImmutableArray.Create("IslandNorth"),
-                        FarmerPosition = new()
-                        {
-                            X = new() { LessThan = 6 },
-                            Y = new() { GreaterThan = 48 },
-                        },
-                        // FIX: Removed broken token condition that caused crashes
-                    }
-                );
+                    var times = parts[5].Split(' ');
+                    baseInfo = times.Length >= 2 && int.TryParse(times[0], out var start) && int.TryParse(times[1], out var end)
+                        ? baseInfo with { StartTime = start, EndTime = end }
+                        : baseInfo with { StartTime = 600, EndTime = 2600 };
 
-                // Vista Painting (https://stardewvalleywiki.com/Secrets#Vista_Painting)
-                yield return new(
-                    NamespacedKey.SdvObject(Game1.year == 1 ? "MyFirstPainting" : "1200"),
-                    new(0.5)
-                    {
-                        IncludeLocations = ImmutableArray.Create("Forest"),
-                        FarmerPosition = new()
-                        {
-                            X = new()
-                            {
-                                GreaterThan = 43,
-                                LessThan = 53,
-                            },
-                            Y = new()
-                            {
-                                GreaterThanEq = 98,
-                                LessThan = 99,
-                            },
-                        },
-                        When = new Dictionary<string, string?>
-                        {
-                            ["HasFlag |contains=gotBoatPainting"] = "false"
-                        }.ToImmutableDictionary(),
-                    }
-                )
-                { OnCatch = new() { SetFlags = ImmutableArray.Create("gotBoatPainting") } };
-
-                // Dove children (https://stardewvalleywiki.com/Secrets#Dove_Children)
-                yield return new(
-                    NamespacedKey.SdvObject(103),
-                    new(0.5)
-                    {
-                        IncludeLocations = ImmutableArray.Create("Farm/FourCorners"),
-                        FarmerPosition = new()
-                        {
-                            X = new() { LessThan = 40 },
-                            Y = new() { GreaterThan = 54 },
-                        },
-                        When = new Dictionary<string, string?>
-                        {
-                            ["HasFlag"] = "cursed_doll",
-                            ["HasFlag |contains=eric's_prank_1"] = "false",
-                        }.ToImmutableDictionary(),
-                    }
-                )
-                { OnCatch = new() { SetFlags = ImmutableArray.Create("eric's_prank_1") } };
+                    baseAvailabilities[itemKey] = baseInfo;
+                }
             }
+
+            // --- STEP 2: Iterate Data/Locations for Trash ---
+            foreach (var (locName, locData) in locationData)
+            {
+                if (locData.Fish == null)
+                {
+                    continue;
+                }
+
+                foreach (var spawnData in locData.Fish)
+                {
+                    if (string.IsNullOrEmpty(spawnData.ItemId))
+                    {
+                        continue;
+                    }
+
+                    var cleanId = spawnData.ItemId.StartsWith("(O)") ? spawnData.ItemId[3..] : spawnData.ItemId;
+
+                    if (!trashFishIds.Contains(cleanId))
+                    {
+                        continue;
+                    }
+
+                    var itemKey = this.GetFishKey(spawnData.ItemId);
+
+                    var info = baseAvailabilities.TryGetValue(itemKey, out var baseAvail)
+                        ? baseAvail
+                        : new AvailabilityInfo(0.1f);
+
+                    var locations = this.GetLocationNames(locName);
+                    info = info with { IncludeLocations = locations };
+
+                    if (!string.IsNullOrEmpty(spawnData.Condition))
+                    {
+                        var tempFishInfo = new FishAvailabilityInfo(info.BaseChance)
+                        {
+                            StartTime = info.StartTime,
+                            EndTime = info.EndTime,
+                            Seasons = info.Seasons,
+                            Weathers = info.Weathers,
+                            MinFishingLevel = info.MinFishingLevel,
+                            IncludeLocations = info.IncludeLocations,
+                            When = info.When
+                        };
+
+                        // CORRECTION : Ajout du paramètre locName ici
+                        tempFishInfo = this.ParseConditionString(spawnData.Condition, tempFishInfo, locName);
+
+                        info = info with
+                        {
+                            StartTime = tempFishInfo.StartTime,
+                            EndTime = tempFishInfo.EndTime,
+                            Seasons = tempFishInfo.Seasons,
+                            Weathers = tempFishInfo.Weathers,
+                            MinFishingLevel = tempFishInfo.MinFishingLevel,
+                            When = tempFishInfo.When
+                        };
+                    }
+
+                    trashEntries.Add(new TrashEntry(itemKey, info));
+                }
+            }
+
+            return new(this.manifest)
+            {
+                AddTrash = trashEntries.ToImmutableArray()
+            };
         }
     }
 }

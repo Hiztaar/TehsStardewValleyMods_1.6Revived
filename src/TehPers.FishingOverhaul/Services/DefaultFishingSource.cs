@@ -1,48 +1,36 @@
-﻿using System;
+﻿using StardewModdingAPI;
+using System;
 using System.Collections.Generic;
-using StardewModdingAPI;
-using TehPers.Core.Api.Content;
-using TehPers.Core.Api.DI;
+using TehPers.FishingOverhaul.Api;
 using TehPers.FishingOverhaul.Api.Content;
 
 namespace TehPers.FishingOverhaul.Services
 {
     internal sealed partial class DefaultFishingSource : IFishingContentSource
     {
-        private const double prioritizedTier = 10d;
-        private const double specialItemTier = 20d;
-        private const double questItemTier = 30d;
-
+        private readonly IMonitor monitor;
         private readonly IManifest manifest;
-        private readonly IAssetProvider assetProvider;
 
-        private readonly List<FishingContent> defaultContent = new();
-
-        // CORRECTION: Désactivation de l'avertissement pour cet événement inutilisé
-#pragma warning disable CS0067
-        public event EventHandler? ReloadRequested;
-#pragma warning restore CS0067
-
-        public DefaultFishingSource(
-            IManifest manifest,
-            [ContentSource(ContentSource.GameContent)] IAssetProvider assetProvider
-        )
+        public DefaultFishingSource(IMonitor monitor, IManifest manifest)
         {
+            this.monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
             this.manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
-            this.assetProvider =
-                assetProvider ?? throw new ArgumentNullException(nameof(assetProvider));
         }
 
-        public IEnumerable<FishingContent> Reload(IMonitor monitor)
+        // CORRECTION 1 : Le type de retour est IEnumerable<FishingContent>
+        // CORRECTION 2 : Le paramètre 'monitor' est renommé en '_' pour éviter l'avertissement paramètre inutilisé
+        public IEnumerable<FishingContent> Reload(IMonitor _)
         {
-            // Reload default content
-            this.defaultContent.Clear();
-            this.defaultContent.Add(this.GetDefaultFishData(monitor));
-            this.defaultContent.Add(this.GetDefaultTrashData());
-            this.defaultContent.Add(this.GetDefaultTreasureData());
-            this.defaultContent.Add(this.GetDefaultEffectData());
+            var fishContent = this.GetDefaultFishData();
+            var trashContent = this.GetDefaultTrashData();
 
-            return this.defaultContent;
+            // On retourne l'objet dans une collection via 'yield return'
+            yield return new FishingContent(this.manifest)
+            {
+                AddFish = fishContent.AddFish,
+                SetFishTraits = fishContent.SetFishTraits,
+                AddTrash = trashContent.AddTrash
+            };
         }
     }
 }
