@@ -17,19 +17,20 @@ namespace TehPers.FishingOverhaul.Services
             this.manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
         }
 
-        // CORRECTION 1 : Le type de retour est IEnumerable<FishingContent>
-        // CORRECTION 2 : Le paramètre 'monitor' est renommé en '_' pour éviter l'avertissement paramètre inutilisé
         public IEnumerable<FishingContent> Reload(IMonitor _)
         {
             var fishContent = this.GetDefaultFishData();
             var trashContent = this.GetDefaultTrashData();
 
-            // On retourne l'objet dans une collection via 'yield return'
+            // Fix: Load treasure data so chests aren't empty
+            var treasureContent = this.GetDefaultTreasureData();
+
             yield return new FishingContent(this.manifest)
             {
                 AddFish = fishContent.AddFish,
                 SetFishTraits = fishContent.SetFishTraits,
-                AddTrash = trashContent.AddTrash
+                AddTrash = trashContent.AddTrash,
+                AddTreasure = treasureContent.AddTreasure
             };
         }
     }

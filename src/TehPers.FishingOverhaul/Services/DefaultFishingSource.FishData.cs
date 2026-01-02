@@ -28,9 +28,15 @@ namespace TehPers.FishingOverhaul.Services
                 ["TehPers.FishingOverhaul/SpecialOrderRuleActive"] = "LEGENDARY_FAMILY",
             }.ToImmutableDictionary();
 
+        // LISTE STRICTE : Uniquement les 5 légendaires vanilla.
+        // Le Sandfish (164) et le Scorpion Carp (165) sont exclus.
         private static readonly HashSet<string> legendaryFishIds = new()
         {
-            "159", "160", "163", "164", "165"
+            "159", // Crimsonfish
+            "160", // Angler
+            "163", // Legend
+            "682", // Mutant Carp
+            "775"  // Glacierfish
         };
 
         private static readonly HashSet<string> legendaryFamilyIds = new()
@@ -45,12 +51,10 @@ namespace TehPers.FishingOverhaul.Services
             "157"  // White Algae
         };
 
-        // Fish IDs to handle manually via loops (to ensure Mine floors work)
-        private static readonly HashSet<string> manualMineFishIds = new()
+        // IDs gérés manuellement (Mines, Désert, Sous-marin)
+        private static readonly HashSet<string> manualOverrideIds = new()
         {
-            "158", // Stonefish
-            "161", // Ice Pip
-            "162"  // Lava Eel
+            "158", "161", "162", "164", "165", "798", "799", "800"
         };
 
         private FishingContent GetDefaultFishData()
@@ -62,7 +66,7 @@ namespace TehPers.FishingOverhaul.Services
             var fishTraits = new Dictionary<NamespacedKey, FishTraits>();
             var baseAvailabilities = new Dictionary<NamespacedKey, FishAvailabilityInfo>();
 
-            // --- STEP 1: Parse Data/Fish ---
+            // --- ETAPE 1 : Analyse de Data/Fish ---
             foreach (var (rawKey, data) in fishData)
             {
                 var parts = data.Split('/');
@@ -79,7 +83,15 @@ namespace TehPers.FishingOverhaul.Services
 
                 var fishKey = this.GetFishKey(rawKey);
 
-                // 1. Traits
+                // Détection intelligente des Légendaires (Tags 1.6)
+                var qualifiedId = rawKey.StartsWith("(O)") ? rawKey : "(O)" + rawKey;
+                var tempItem = ItemRegistry.Create(qualifiedId);
+
+                var isVanillaLegendary = tempItem != null && tempItem.HasContextTag("fish_legendary");
+                var isFamilyLegendary = tempItem != null && tempItem.HasContextTag("fish_legendary_family");
+                var isLegendary = isVanillaLegendary || isFamilyLegendary;
+
+                // Traits
                 if (int.TryParse(parts[1], out var difficulty) &&
                     int.TryParse(parts[3], out var minSize) &&
                     int.TryParse(parts[4], out var maxSize))
@@ -96,26 +108,13 @@ namespace TehPers.FishingOverhaul.Services
                         _ => DartBehavior.Mixed
                     };
 
-                    var isLegendary = legendaryFishIds.Contains(cleanId)
-                                      || legendaryFamilyIds.Contains(cleanId);
-
-                    if (!isLegendary)
-                    {
-                        var qualifiedId = rawKey.StartsWith("(O)") ? rawKey : "(O)" + rawKey;
-                        var tempItem = ItemRegistry.Create(qualifiedId);
-                        if (tempItem != null && tempItem.HasContextTag("fish_legendary"))
-                        {
-                            isLegendary = true;
-                        }
-                    }
-
                     fishTraits[fishKey] = new FishTraits(difficulty, behavior, minSize, maxSize)
                     {
                         IsLegendary = isLegendary
                     };
                 }
 
-                // 2. Base Availability
+                // Disponibilité de base
                 if (float.TryParse(parts[10], out var chance) && int.TryParse(parts[12], out var minLevel))
                 {
                     var baseInfo = new FishAvailabilityInfo(chance)
@@ -134,7 +133,7 @@ namespace TehPers.FishingOverhaul.Services
                 }
             }
 
-            // --- STEP 2: Iterate Data/Locations ---
+            // --- ETAPE 2 : Itération Data/Locations ---
             foreach (var (locName, locData) in locationData)
             {
                 if (locData.Fish == null)
@@ -151,13 +150,8 @@ namespace TehPers.FishingOverhaul.Services
 
                     var cleanId = spawnData.ItemId.StartsWith("(O)") ? spawnData.ItemId[3..] : spawnData.ItemId;
 
-                    if (trashFishIds.Contains(cleanId))
-                    {
-                        continue;
-                    }
-
-                    // SKIP Manual Mine Fish (we add them later)
-                    if (manualMineFishIds.Contains(cleanId) && locName == "UndergroundMine")
+                    // Exclusion des items gérés manuellement
+                    if (trashFishIds.Contains(cleanId) || manualOverrideIds.Contains(cleanId))
                     {
                         continue;
                     }
@@ -167,6 +161,14 @@ namespace TehPers.FishingOverhaul.Services
                     {
                         continue;
                     }
+
+                    // Vérification légendaire pour l'entrée spécifique
+                    var qualifiedId = spawnData.ItemId.StartsWith("(O)") ? spawnData.ItemId : "(O)" + spawnData.ItemId;
+                    var tempItem = ItemRegistry.Create(qualifiedId);
+
+                    // On combine la détection par liste (pour Vanilla) et par tag (pour Mods)
+                    var isVanillaLegendary = (tempItem != null && tempItem.HasContextTag("fish_legendary")) || legendaryFishIds.Contains(cleanId);
+                    var isFamilyLegendary = (tempItem != null && tempItem.HasContextTag("fish_legendary_family")) || legendaryFamilyIds.Contains(cleanId);
 
                     var info = baseAvailabilities.TryGetValue(fishKey, out var baseAvail)
                         ? baseAvail
@@ -180,23 +182,38 @@ namespace TehPers.FishingOverhaul.Services
                         info = this.ParseConditionString(spawnData.Condition, info, locName);
                     }
 
-                    if (legendaryFishIds.Contains(cleanId))
+                    // Application des règles légendaires
+                    if (isVanillaLegendary)
                     {
                         info = info with { When = legendaryBaseConditions };
                     }
-                    else if (legendaryFamilyIds.Contains(cleanId))
+                    else if (isFamilyLegendary)
                     {
                         info = info with { When = isLegendaryFamilyActive };
                     }
 
+                    // 1. Ajout de l'entrée STANDARD (Conditions normales)
                     fishEntries.Add(new FishEntry(fishKey, info));
+
+                    // 2. Ajout de l'entrée FRÉNÉSIE (Condition stricte 1.6)
+                    // Cette entrée n'est valide QUE SI le joueur pêche dans les bulles actives de ce poisson.
+                    if (!isVanillaLegendary && !isFamilyLegendary)
+                    {
+                        var frenzyInfo = info with
+                        {
+                            // Poids massif pour garantir la prise si la condition est remplie
+                            BaseChance = 5.0f,
+                            // Requête native 1.6 : Vérifie (Frenzy Active + Bon Poisson + Dans les Bulles)
+                            When = info.When.Add($"Query: CATCHING_FRENZY_FISH {qualifiedId}", "true")
+                        };
+                        fishEntries.Add(new FishEntry(fishKey, frenzyInfo));
+                    }
                 }
             }
 
-            // --- STEP 3: Manual Injections (Fix Mine Fish) ---
-            // We manually loop through floors to ensure availability, bypassing parser issues.
+            // --- ETAPE 3 : Injections Manuelles (Mines, Désert, Sous-marin) ---
 
-            // 158: Stonefish (Floors 20-60)
+            // Poissons des Mines (Stonefish, Ice Pip, Lava Eel)
             if (fishTraits.ContainsKey(NamespacedKey.SdvObject(158)))
             {
                 var locs = new List<string>();
@@ -204,15 +221,10 @@ namespace TehPers.FishingOverhaul.Services
                 {
                     locs.Add($"UndergroundMine/{i}");
                 }
-
-                var baseInfo = baseAvailabilities.ContainsKey(NamespacedKey.SdvObject(158))
-                    ? baseAvailabilities[NamespacedKey.SdvObject(158)]
-                    : new FishAvailabilityInfo(0.05f);
-
+                var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(158)) ?? new FishAvailabilityInfo(0.05f);
                 fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(158), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
             }
 
-            // 161: Ice Pip (Floors 60-100)
             if (fishTraits.ContainsKey(NamespacedKey.SdvObject(161)))
             {
                 var locs = new List<string>();
@@ -220,15 +232,10 @@ namespace TehPers.FishingOverhaul.Services
                 {
                     locs.Add($"UndergroundMine/{i}");
                 }
-
-                var baseInfo = baseAvailabilities.ContainsKey(NamespacedKey.SdvObject(161))
-                    ? baseAvailabilities[NamespacedKey.SdvObject(161)]
-                    : new FishAvailabilityInfo(0.05f);
-
+                var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(161)) ?? new FishAvailabilityInfo(0.05f);
                 fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(161), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
             }
 
-            // 162: Lava Eel (Floors 100-120) + Caldera
             if (fishTraits.ContainsKey(NamespacedKey.SdvObject(162)))
             {
                 var locs = new List<string>();
@@ -236,13 +243,42 @@ namespace TehPers.FishingOverhaul.Services
                 {
                     locs.Add($"UndergroundMine/{i}");
                 }
-                locs.Add("Caldera"); // Volcano
-
-                var baseInfo = baseAvailabilities.ContainsKey(NamespacedKey.SdvObject(162))
-                    ? baseAvailabilities[NamespacedKey.SdvObject(162)]
-                    : new FishAvailabilityInfo(0.02f);
-
+                locs.Add("Caldera");
+                locs.Add("VolcanoDungeon");
+                var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(162)) ?? new FishAvailabilityInfo(0.02f);
                 fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(162), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
+            }
+
+            // Logique du Désert (Festival vs Normal)
+            var isSpring = Game1.currentSeason.Equals("spring", StringComparison.OrdinalIgnoreCase);
+            var isFestivalDay = Game1.dayOfMonth is >= 15 and <= 17;
+            var isDesertFestival = isSpring && isFestivalDay;
+
+            if (!isDesertFestival)
+            {
+                // Poissons normaux (seulement hors festival)
+                foreach (var id in new[] { 164, 165 })
+                {
+                    if (fishTraits.ContainsKey(NamespacedKey.SdvObject(id)))
+                    {
+                        var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(id)) ?? new FishAvailabilityInfo(0.1f);
+                        fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(id), baseInfo with { IncludeLocations = ImmutableArray.Create("Desert") }));
+                    }
+                }
+            }
+            else
+            {
+                // Pool du Festival (vide pour l'instant, à remplir si besoin d'entrées hardcodées)
+            }
+
+            // Poissons du Sous-marin
+            foreach (var id in new[] { 798, 799, 800, 154, 155, 149 })
+            {
+                if (fishTraits.ContainsKey(NamespacedKey.SdvObject(id)))
+                {
+                    var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(id)) ?? new FishAvailabilityInfo(0.1f);
+                    fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(id), baseInfo with { IncludeLocations = ImmutableArray.Create("Submarine") }));
+                }
             }
 
             return new(this.manifest)
@@ -373,7 +409,6 @@ namespace TehPers.FishingOverhaul.Services
                         break;
 
                     case "MINE_LEVEL":
-                        // Keep this for other mine fish (like Ghostfish or modded ones)
                         if (parts.Length >= 2 && int.TryParse(parts[1], out var startLevel))
                         {
                             var endLevel = startLevel;

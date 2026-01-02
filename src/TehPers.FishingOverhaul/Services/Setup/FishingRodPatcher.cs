@@ -138,13 +138,16 @@ namespace TehPers.FishingOverhaul.Services.Setup
             var fishSizePercent = Math.Clamp(sizeFactor * (1.0f + Game1.random.Next(-10, 11) / 100.0f), 0.0f, 1.0f);
             var treasure = !Game1.isFestival() && fishingInfo.User.fishCaught?.Count() > 1 && Game1.random.NextDouble() < this.fishingApi.GetChanceForTreasure(fishingInfo);
 
+            // [FIX APPLIED] 
+            // The crash happened here because rod.GetTackle() can contain nulls for empty slots in Iridium Rods.
+            // Added .Where(t => t != null) to filter them out safely.
             var customBobber = this.customBobberBarFactory.Create(
                 fishingInfo,
                 fishEntry,
                 fishItem,
                 fishSizePercent,
                 treasure,
-                rod.GetTackle().Select(tackle => tackle.ItemId).ToList(),
+                rod.GetTackle().Where(t => t != null).Select(tackle => tackle.ItemId).ToList(),
                 fromFishPond
             );
 
@@ -231,7 +234,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
             var itemId = item.QualifiedItemId ?? "(O)168";
 
-            // FIX: Safely try to set whichFish using Reflection with null checks
+            // [FIX APPLIED] Added null checks for reflection access to prevent rare crashes here too
             try
             {
                 var field = this.helper.Reflection.GetField<NetString>(rod, "whichFish");
@@ -246,7 +249,6 @@ namespace TehPers.FishingOverhaul.Services.Setup
             }
             catch (Exception ex)
             {
-                // Silence common errors if it doesn't break game flow
                 this.monitor.LogOnce($"Failed to set whichFish (harmless if fishing works): {ex.Message}", LogLevel.Trace);
             }
 
