@@ -85,9 +85,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
         public override void Setup()
         {
-            // --- ADD THIS LINE HERE ---
             FrenzyQuery.Register();
-            // --------------------------
 
             this.Patch(
                 AccessTools.Method(typeof(FishingRod), nameof(FishingRod.tickUpdate)),
@@ -143,9 +141,6 @@ namespace TehPers.FishingOverhaul.Services.Setup
             var fishSizePercent = Math.Clamp(sizeFactor * (1.0f + Game1.random.Next(-10, 11) / 100.0f), 0.0f, 1.0f);
             var treasure = !Game1.isFestival() && fishingInfo.User.fishCaught?.Count() > 1 && Game1.random.NextDouble() < this.fishingApi.GetChanceForTreasure(fishingInfo);
 
-            // [FIX APPLIED] 
-            // The crash happened here because rod.GetTackle() can contain nulls for empty slots in Iridium Rods.
-            // Added .Where(t => t != null) to filter them out safely.
             var customBobber = this.customBobberBarFactory.Create(
                 fishingInfo,
                 fishEntry,
@@ -239,7 +234,6 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
             var itemId = item.QualifiedItemId ?? "(O)168";
 
-            // [FIX APPLIED] Added null checks for reflection access to prevent rare crashes here too
             try
             {
                 var field = this.helper.Reflection.GetField<NetString>(rod, "whichFish");
