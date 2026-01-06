@@ -30,18 +30,38 @@ namespace TehPers.FishingOverhaul.Services
             // 2. Règles Qi (Legendary Family)
             GameStateQuery.Register("PLAYER_HAS_SPECIAL_ORDER_RULE", CheckSpecialOrderRule);
 
-            // 3. Position du Bouchon (Bobber)
+            // 3. Position du Bouchon (Pour le poisson Legend/Crimsonfish)
+            // Syntaxe : BOBBER_IN_RECT <X> <Y> <W> <H>
             GameStateQuery.Register("BOBBER_IN_RECT", CheckBobberInRect);
 
-            // 4. Position du Joueur X (Manquant dans Vanilla pour ce contexte)
-            // Syntaxe: PLAYER_TILE_X <Target> <Min> <Max>
-            GameStateQuery.Register("PLAYER_TILE_X", CheckPlayerTileX);
+            // 4. Profondeur de l'eau (Pour le poisson Legend)
+            // Syntaxe : WATER_DEPTH <MinDepth>
+            GameStateQuery.Register("WATER_DEPTH", CheckWaterDepth);
 
-            // 5. Position du Joueur Y
-            // Syntaxe: PLAYER_TILE_Y <Target> <Min> <Max>
+            // 5. Position Joueur (Manquant dans Vanilla pour ce contexte spécifique)
+            GameStateQuery.Register("PLAYER_TILE_X", CheckPlayerTileX);
             GameStateQuery.Register("PLAYER_TILE_Y", CheckPlayerTileY);
 
             isRegistered = true;
+        }
+
+        private static bool CheckWaterDepth(string[] query, GameStateQueryContext context)
+        {
+            if (query.Length < 2)
+            {
+                return false;
+            }
+            if (!int.TryParse(query[1], out var minDepth))
+            {
+                return false;
+            }
+
+            if (context.Player.CurrentTool is FishingRod rod)
+            {
+                // clearWaterDistance est la valeur utilisée par le jeu pour la "zone" de pêche (0 à 5)
+                return rod.clearWaterDistance >= minDepth;
+            }
+            return false;
         }
 
         private static bool CheckSpecialOrderRule(string[] query, GameStateQueryContext context)
@@ -57,23 +77,18 @@ namespace TehPers.FishingOverhaul.Services
 
         private static bool CheckPlayerTileX(string[] query, GameStateQueryContext context)
         {
-            // query[0] = NOM, query[1] = TARGET (ex: Current), query[2] = MIN, query[3] = MAX
             if (query.Length < 4)
             {
                 return false;
             }
-
             if (context.Player is not { } player)
             {
                 return false;
             }
-
             if (!int.TryParse(query[2], out var min) || !int.TryParse(query[3], out var max))
             {
                 return false;
             }
-
-            // Vérification : Min inclusif, Max exclusif (standard Rectangle)
             return player.TilePoint.X >= min && player.TilePoint.X < max;
         }
 
@@ -83,17 +98,14 @@ namespace TehPers.FishingOverhaul.Services
             {
                 return false;
             }
-
             if (context.Player is not { } player)
             {
                 return false;
             }
-
             if (!int.TryParse(query[2], out var min) || !int.TryParse(query[3], out var max))
             {
                 return false;
             }
-
             return player.TilePoint.Y >= min && player.TilePoint.Y < max;
         }
 
@@ -126,19 +138,16 @@ namespace TehPers.FishingOverhaul.Services
             {
                 return false;
             }
-
             if (context.Player is not { } player)
             {
                 return false;
             }
-
             if (query.Length < 2)
             {
                 return false;
             }
 
             var targetFishId = query[1];
-
             if (location.fishFrenzyFish.Value != targetFishId)
             {
                 return false;

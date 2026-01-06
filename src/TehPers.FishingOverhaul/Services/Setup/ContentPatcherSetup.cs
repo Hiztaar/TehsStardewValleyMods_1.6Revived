@@ -129,8 +129,8 @@ namespace TehPers.FishingOverhaul.Services.Setup
             }
 
             return limitedNutDrops.TryGetValue("IslandFishing", out var fishingNuts)
-                ? new[] {fishingNuts.ToString("G")}
-                : new[] {"0"};
+                ? new[] { fishingNuts.ToString("G") }
+                : new[] { "0" };
         }
 
         private static IEnumerable<string>? GetTidePoolGoldenWalnut()
@@ -146,13 +146,13 @@ namespace TehPers.FishingOverhaul.Services.Setup
             }
 
             return team.collectedNutTracker.Contains("StardropPool")
-                ? new[] {"true"}
-                : new[] {"false"};
+                ? new[] { "true" }
+                : new[] { "false" };
         }
 
         private static IEnumerable<string>? GetActiveBait()
         {
-            if (Game1.player is not {CurrentItem: FishingRod rod})
+            if (Game1.player is not { CurrentItem: FishingRod rod })
             {
                 return null;
             }
@@ -168,15 +168,21 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
         private static IEnumerable<string>? GetActiveTackle()
         {
-            if (Game1.player is not {CurrentItem: FishingRod rod})
+            if (Game1.player is not { CurrentItem: FishingRod rod })
             {
                 return null;
             }
 
             var tackleList = rod.GetTackle();
-            return tackleList == null
-            ? Enumerable.Empty<string>()
-                : tackleList.Select(tackle => NamespacedKey.SdvObject(tackle.ItemId).ToString());
+            if (tackleList == null)
+            {
+                return Enumerable.Empty<string>();
+            }
+
+            // CORRECTIF CRITIQUE : Filtrer les valeurs nulles (slots vides) pour éviter le crash
+            return tackleList
+                .Where(tackle => tackle != null)
+                .Select(tackle => NamespacedKey.SdvObject(tackle.ItemId).ToString());
         }
     }
 }
