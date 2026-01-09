@@ -31,16 +31,10 @@ namespace TehPers.FishingOverhaul.Services
         private readonly TreasureConfig treasureConfig;
         private readonly Func<IEnumerable<IFishingContentSource>> contentSourcesFactory;
 
-        private readonly EntryManagerFactory<FishEntry, FishAvailabilityInfo>
-            fishEntryManagerFactory;
-
+        private readonly EntryManagerFactory<FishEntry, FishAvailabilityInfo> fishEntryManagerFactory;
         private readonly EntryManagerFactory<TrashEntry, AvailabilityInfo> trashEntryManagerFactory;
-
-        private readonly EntryManagerFactory<TreasureEntry, AvailabilityInfo>
-            treasureEntryManagerFactory;
-
+        private readonly EntryManagerFactory<TreasureEntry, AvailabilityInfo> treasureEntryManagerFactory;
         private readonly FishingEffectManagerFactory fishingEffectManagerFactory;
-
         private readonly Lazy<IOptional<IEmpApi>> empApi;
 
         internal readonly Dictionary<NamespacedKey, FishTraits> fishTraits;
@@ -70,18 +64,12 @@ namespace TehPers.FishingOverhaul.Services
             this.monitor = monitor ?? throw new ArgumentNullException(nameof(monitor));
             this.manifest = manifest ?? throw new ArgumentNullException(nameof(manifest));
             this.fishConfig = fishConfig ?? throw new ArgumentNullException(nameof(fishConfig));
-            this.treasureConfig =
-                treasureConfig ?? throw new ArgumentNullException(nameof(treasureConfig));
-            this.contentSourcesFactory = contentSourcesFactory
-                ?? throw new ArgumentNullException(nameof(contentSourcesFactory));
-            this.fishEntryManagerFactory = fishEntryManagerFactory
-                ?? throw new ArgumentNullException(nameof(fishEntryManagerFactory));
-            this.trashEntryManagerFactory = trashEntryManagerFactory
-                ?? throw new ArgumentNullException(nameof(trashEntryManagerFactory));
-            this.treasureEntryManagerFactory = treasureEntryManagerFactory
-                ?? throw new ArgumentNullException(nameof(treasureEntryManagerFactory));
-            this.fishingEffectManagerFactory = fishingEffectManagerFactory
-                ?? throw new ArgumentNullException(nameof(fishingEffectManagerFactory));
+            this.treasureConfig = treasureConfig ?? throw new ArgumentNullException(nameof(treasureConfig));
+            this.contentSourcesFactory = contentSourcesFactory ?? throw new ArgumentNullException(nameof(contentSourcesFactory));
+            this.fishEntryManagerFactory = fishEntryManagerFactory ?? throw new ArgumentNullException(nameof(fishEntryManagerFactory));
+            this.trashEntryManagerFactory = trashEntryManagerFactory ?? throw new ArgumentNullException(nameof(trashEntryManagerFactory));
+            this.treasureEntryManagerFactory = treasureEntryManagerFactory ?? throw new ArgumentNullException(nameof(treasureEntryManagerFactory));
+            this.fishingEffectManagerFactory = fishingEffectManagerFactory ?? throw new ArgumentNullException(nameof(fishingEffectManagerFactory));
             this.empApi = empApi ?? throw new ArgumentNullException(nameof(empApi));
 
             this.fishTraits = new();
@@ -100,27 +88,27 @@ namespace TehPers.FishingOverhaul.Services
             this.reloadRequested = true;
         }
 
-        // --- Helper: ID Matching ---
-        private static bool IsIdMatch(string targetId, string fishId)
+        // --- Helper: Robust ID Matching ---
+        private static bool IsIdMatch(NamespacedKey target, NamespacedKey candidate)
         {
-            // Normalize IDs to handle "(O)138" vs "138" using range operator [3..]
-            var t = targetId.StartsWith("(O)") ? targetId[3..] : targetId;
-            var f = fishId.StartsWith("(O)") ? fishId[3..] : fishId;
-            return t == f;
+            if (target.Equals(candidate))
+            {
+                return true;
+            }
+
+            // Handle (O)128 vs 128 mismatch
+            var t = target.Key.StartsWith("(O)") ? target.Key[3..] : target.Key;
+            var c = candidate.Key.StartsWith("(O)") ? candidate.Key[3..] : candidate.Key;
+            return t == c;
         }
 
-        // --- TARGETED BAIT LOGIC ---
-
+        // --- 1. TARGETED BAIT: WEIGHT MODIFIER ---
         private IEnumerable<IWeightedValue<FishEntry>> ApplyTargetedBaitToWeights(
             FishingInfo fishingInfo,
             IEnumerable<IWeightedValue<FishEntry>> chances)
         {
-            if (fishingInfo.User?.CurrentTool is not FishingRod rod || rod.GetBait() is not { } bait)
-            {
-                return chances;
-            }
-
-            if (bait.preservedParentSheetIndex.Value is not { } targetId)
+            // Use the robust detection from FishingInfo
+            if (fishingInfo.TargetedFish is not { } targetKey)
             {
                 return chances;
             }
@@ -128,61 +116,43 @@ namespace TehPers.FishingOverhaul.Services
             return chances.ToWeighted(
                 weightedValue =>
                 {
-                    var fishId = weightedValue.Value.FishKey.Key;
+                    var fishKey = weightedValue.Value.FishKey;
 
-                    if (!IsIdMatch(targetId, fishId))
+                    if (IsIdMatch(targetKey, fishKey))
                     {
-                        return weightedValue.Weight;
-                    }
-
-                    // Vanilla 1.6 Logic approximation
-                    if (IsIdMatch(fishId, "158"))
-                    {
-                        return weightedValue.Weight + 0.10; // Stonefish
-                    }
-                    if (IsIdMatch(fishId, "161"))
-                    {
-                        return weightedValue.Weight + 0.09; // Ice Pip
-                    }
-                    if (IsIdMatch(fishId, "162"))
-                    {
-                        return weightedValue.Weight + 0.08; // Lava Eel
-                    }
-                    if (IsIdMatch(fishId, "Goby"))
-                    {
-                        return weightedValue.Weight + 0.20; // Goby
+                        // Stardew 1.6 applies a 1.66x multiplier to the chance.
+                        // In a weighted pool, increasing the weight by 1.66x simulates this relative to other fish.
+                        // (Global Fish Chance is handled separately)
+                        return weightedValue.Weight * 1.66;
                     }
 
-                    // Standard Fish: Massive Multiplier (200x)
-                    return weightedValue.Weight * 200.0;
+                    return weightedValue.Weight;
                 },
                 weightedValue => weightedValue.Value
             );
         }
 
-        private double ApplyTargetedBaitToChance(FishingInfo fishingInfo, double chance)
+        // --- 2. TARGETED BAIT: GLOBAL CHANCE MODIFIER ---
+        private double ApplyTargetedBaitToGlobalChance(FishingInfo fishingInfo, double baseChance)
         {
-            if (fishingInfo.User?.CurrentTool is not FishingRod rod || rod.GetBait() is not { } bait)
+            if (fishingInfo.TargetedFish is not { } targetKey)
             {
-                return chance;
+                return baseChance;
             }
 
-            if (bait.preservedParentSheetIndex.Value is not { } targetId)
-            {
-                return chance;
-            }
-
-            // Check availability
+            // Check if the targeted fish is actually available in the current pool
+            // We must call GetWeightedEntries directly to avoid infinite recursion if we called GetFishChances
             var availableFish = FishingApi.GetWeightedEntries(this.fishManagers, fishingInfo);
-            var isTargetAvailable = availableFish.Any(f => IsIdMatch(targetId, f.Value.FishKey.Key) && f.Weight > 0);
+            var isTargetAvailable = availableFish.Any(f => IsIdMatch(targetKey, f.Value.FishKey) && f.Weight > 0);
 
             if (isTargetAvailable)
             {
-                // Force 100% fish chance (No Trash) if target is present
-                return 1.0d;
+                // Vanilla Logic: Targeted Bait increases the catch chance by 1.66x.
+                // This effectively reduces the chance of catching trash.
+                return Math.Min(1.0, baseChance * 1.66);
             }
 
-            return chance;
+            return baseChance;
         }
 
         // ... [Standard Overrides] ...
@@ -344,7 +314,7 @@ namespace TehPers.FishingOverhaul.Services
             var preparedChancesArgs = new PreparedFishEventArgs(fishingInfo, chances.ToList());
             this.OnPreparedFishChances(preparedChancesArgs);
 
-            // FIX: Apply Targeted Bait Logic explicitly AFTER events to override other mods
+            // Apply 1.66x weight multiplier to the specific fish
             return this.ApplyTargetedBaitToWeights(fishingInfo, preparedChancesArgs.FishChances);
         }
 
@@ -354,7 +324,7 @@ namespace TehPers.FishingOverhaul.Services
             this.ReloadIfRequested();
             if (!this.fishTraits.TryGetValue(fishKey, out traits))
             {
-                traits = null; // Fix for CS8625
+                traits = null;
                 return false;
             }
             var dartFrequency = (int)(this.fishConfig.GlobalDartFrequencyFactor * traits.DartFrequency);
@@ -390,8 +360,8 @@ namespace TehPers.FishingOverhaul.Services
             var eventArgs = new CalculatedFishChanceEventArgs(fishingInfo, chanceForFish);
             this.OnCalculatedFishChance(eventArgs);
 
-            // FIX: Apply Targeted Bait Logic explicitly AFTER events to override other mods
-            var finalChance = this.ApplyTargetedBaitToChance(fishingInfo, eventArgs.Chance);
+            // Apply 1.66x global multiplier if targeted bait is active and valid
+            var finalChance = this.ApplyTargetedBaitToGlobalChance(fishingInfo, eventArgs.Chance);
 
             return this.ClampFishChance(fishingInfo, finalChance);
         }

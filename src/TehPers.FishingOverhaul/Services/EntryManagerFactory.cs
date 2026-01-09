@@ -1,5 +1,6 @@
 ﻿using System;
 using StardewModdingAPI;
+using TehPers.Core.Api.Items;
 using TehPers.FishingOverhaul.Api.Content;
 
 namespace TehPers.FishingOverhaul.Services
@@ -18,7 +19,11 @@ namespace TehPers.FishingOverhaul.Services
 
         public EntryManager<TEntry, TAvailability> Create(IManifest owner, TEntry entry)
         {
-            return new(this.calculatorFactory.Chances(owner, entry.AvailabilityInfo), entry);
+            var fishKey = entry is FishEntry fishEntry ? (NamespacedKey?)fishEntry.FishKey : null;
+            return new(
+                this.calculatorFactory.Chances(owner, entry.AvailabilityInfo, fishKey),
+                entry
+            );
         }
     }
 }

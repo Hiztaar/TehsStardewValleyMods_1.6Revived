@@ -1,6 +1,7 @@
 ﻿using System;
 using ContentPatcher;
 using StardewModdingAPI;
+using TehPers.Core.Api.Items;
 using TehPers.FishingOverhaul.Api.Content;
 
 namespace TehPers.FishingOverhaul.Services
@@ -35,14 +36,15 @@ namespace TehPers.FishingOverhaul.Services
             );
         }
 
-        public ChanceCalculator Chances(IManifest owner, AvailabilityInfo info)
+        public ChanceCalculator Chances(IManifest owner, AvailabilityInfo info, NamespacedKey? entryKey = null)
         {
             return new(
                 this.monitor,
                 this.contentPatcherApiFactory.Value,
                 this.fishingManifest,
                 owner,
-                info
+                info,
+                entryKey
             );
         }
     }

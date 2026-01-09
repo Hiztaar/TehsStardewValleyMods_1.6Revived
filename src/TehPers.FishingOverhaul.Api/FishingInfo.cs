@@ -63,9 +63,8 @@ namespace TehPers.FishingOverhaul.Api
         /// </summary>
         public WaterTypes WaterTypes { get; init; } = GetWaterType(User);
 
-
         /// <summary>
-        /// (Optional) Flag to set when fish is caught
+        /// (Optional) Flag to set when fish is caught.
         /// </summary>
         public string? SetFlagOnCatch { get; init; } = null;
 
@@ -100,9 +99,15 @@ namespace TehPers.FishingOverhaul.Api
         /// <summary>
         /// The bait used for fishing.
         /// </summary>
-        public NamespacedKey? Bait { get; } = User.CurrentTool is FishingRod rod
-            ? FishingInfo.ConvertAttachmentIndex(rod.attachments.IndexOf(rod.GetBait()))
+        public NamespacedKey? Bait { get; } = User.CurrentTool is FishingRod rod && rod.GetBait() is { } bait
+            ? NamespacedKey.SdvObject(bait.ItemId)
             : null;
+
+        /// <summary>
+        /// The fish targeted by the bait, if any.
+        /// Updated for Stardew Valley 1.6 logic.
+        /// </summary>
+        public NamespacedKey? TargetedFish { get; } = GetTargetedFish(User.CurrentTool as FishingRod);
 
         /// <summary>
         /// The bobber/tackle used for fishing.
@@ -110,6 +115,42 @@ namespace TehPers.FishingOverhaul.Api
         public NamespacedKey? Bobber { get; } = User.CurrentTool is FishingRod rod
             ? FishingInfo.ConvertAttachmentIndex(rod.attachments.IndexOf(rod.GetTackle().FirstOrDefault()))
             : null;
+
+        private static NamespacedKey? GetTargetedFish(FishingRod? rod)
+        {
+            if (rod?.GetBait() is not StardewValley.Object bait)
+            {
+                return null;
+            }
+
+            // 1. Detect if bait is specialized
+            // FIX: Stardew Valley 1.6 uses "SpecificBait" as the Item ID for Targeted Bait.
+            var isTargetedBait = bait.ItemId == "SpecificBait"
+                                 || bait.HasContextTag("targeted_bait")
+                                 || bait.Name.Contains("Specific Bait");
+
+            if (!isTargetedBait)
+            {
+                return null;
+            }
+
+            // 2. Extract the Preserved Item ID (Target Fish)
+            // In 1.6, this is stored in preservedParentSheetIndex (NetString)
+            var preservedId = bait.preservedParentSheetIndex.Value;
+
+            if (string.IsNullOrWhiteSpace(preservedId))
+            {
+                return null;
+            }
+
+            // 3. Resolve the ID to ensure it matches the game's item data
+            if (ItemRegistry.GetData(preservedId) is { } data)
+            {
+                return NamespacedKey.SdvObject(data.ItemId);
+            }
+
+            return null;
+        }
 
         private static WaterTypes GetWaterType(Farmer farmer)
         {
