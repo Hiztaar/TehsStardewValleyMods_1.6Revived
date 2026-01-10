@@ -12,6 +12,7 @@ using TehPers.FishingOverhaul.Config;
 using TehPers.FishingOverhaul.Extensions;
 using TehPers.FishingOverhaul.Extensions.Drawing;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace TehPers.FishingOverhaul.Gui
 {
@@ -50,9 +51,6 @@ namespace TehPers.FishingOverhaul.Gui
             bool fromFishPond,
             bool isBossFish = false
         )
-            // FIX 1: Pass the REAL Fish ID to the base constructor.
-            // This ensures Vanilla initializes the correct movement timers/patterns from the start.
-            // We use "142" (Carp) as a fallback if null to ensure valid physics init.
             : base(fishItem?.ItemId ?? "142", fishSizePercent, treasure, bobbers, fishingInfo.SetFlagOnCatch, isBossFish)
         {
             _ = helper ?? throw new ArgumentNullException(nameof(helper));
@@ -93,7 +91,8 @@ namespace TehPers.FishingOverhaul.Gui
                 _ => 2,
             };
 
-            if (bobbers.Contains("877")) // Quality Bobber
+            // Quality Bobber ID is 877
+            if (bobbers.Contains("877") || bobbers.Contains("(O)877"))
             {
                 this.fishQuality += 1;
                 if (this.fishQuality > 2)
@@ -102,7 +101,7 @@ namespace TehPers.FishingOverhaul.Gui
                 }
             }
 
-            // FIX 2: Restore Difficulty Scaling
+            // Difficulty Scaling
             this.difficulty = fishTraits.DartFrequency;
             if (this.bossFish)
             {
@@ -129,7 +128,6 @@ namespace TehPers.FishingOverhaul.Gui
 
         public override void update(GameTime time)
         {
-            // Speed warp logic
             var delta = this.distanceFromCatching - this.lastDistanceFromCatching;
             var mult = delta switch
             {
@@ -140,7 +138,6 @@ namespace TehPers.FishingOverhaul.Gui
             this.distanceFromCatching = this.lastDistanceFromCatching + delta * mult;
             this.lastDistanceFromCatching = this.distanceFromCatching;
 
-            // Treasure logic
             delta = this.treasureCatchLevel - this.lastTreasureCatchLevel;
             mult = delta switch
             {
@@ -165,7 +162,6 @@ namespace TehPers.FishingOverhaul.Gui
                 this.state = newState;
             }
 
-            // Post-catch logic
             if (this.fadeOut)
             {
                 if (this.scale <= 0.05f)
@@ -223,7 +219,6 @@ namespace TehPers.FishingOverhaul.Gui
         {
             Game1.StartWorldDrawInUI(b);
 
-            // Background
             b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen - (this.flipBubble ? 44 : 20) + 104, this.yPositionOnScreen - 16 + 314) + this.everythingShake, new Rectangle(652, 1685, 52, 157), Color.White * 0.6f * this.scale, 0.0f, new Vector2(26f, 78.5f) * this.scale, 4f * this.scale, this.flipBubble ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 1f / 1000f);
             b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 70, this.yPositionOnScreen + 296) + this.everythingShake, new Rectangle(644, 1999, 37, 150), Color.White * this.scale, 0.0f, new Vector2(18.5f, 74f) * this.scale, 4f * this.scale, SpriteEffects.None, 0.01f);
 
@@ -231,18 +226,14 @@ namespace TehPers.FishingOverhaul.Gui
             {
                 var color = this.bobberInBar ? Color.White : Color.White * 0.25f * ((float)Math.Round(Math.Sin(Game1.currentGameTime.TotalGameTime.TotalMilliseconds / 100.0), 2) + 2f);
 
-                // Bar Components
                 b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.bobberBarPos) + this.barShake + this.everythingShake, new Rectangle(682, 2078, 9, 2), color, 0.0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
                 b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.bobberBarPos + 8) + this.barShake + this.everythingShake, new Rectangle(682, 2081, 9, 1), color, 0.0f, Vector2.Zero, new Vector2(4f, this.bobberBarHeight - 16), SpriteEffects.None, 0.89f);
                 b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.bobberBarPos + this.bobberBarHeight - 8) + this.barShake + this.everythingShake, new Rectangle(682, 2085, 9, 2), color, 0.0f, Vector2.Zero, 4f, SpriteEffects.None, 0.89f);
 
-                // Progress Bar
                 b.Draw(Game1.staminaRect, new Rectangle(this.xPositionOnScreen + 124, this.yPositionOnScreen + 4 + (int)(580.0 * (1.0 - this.distanceFromCatching)), 16, (int)(580.0 * this.distanceFromCatching)), Utility.getRedToGreenLerpColor(this.distanceFromCatching));
 
-                // Reel
                 b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 18, this.yPositionOnScreen + 514) + this.everythingShake, new Rectangle(257, 1990, 5, 10), Color.White, this.reelRotation, new(2f, 10f), 4f, SpriteEffects.None, 0.9f);
 
-                // Treasure
                 b.Draw(Game1.mouseCursors, new Vector2(this.xPositionOnScreen + 64 + 18, this.yPositionOnScreen + 12 + 24 + this.treasurePosition) + this.treasureShake + this.everythingShake, new Rectangle(638, 1865, 20, 24), Color.White, 0.0f, new(10f, 10f), 2f * this.treasureScale, SpriteEffects.None, 0.85f);
                 if (this.treasureCatchLevel > 0.0 && !this.treasureCaught)
                 {
@@ -250,18 +241,26 @@ namespace TehPers.FishingOverhaul.Gui
                     b.Draw(Game1.staminaRect, new Rectangle(this.xPositionOnScreen + 64, this.yPositionOnScreen + 12 + (int)this.treasurePosition, (int)(this.treasureCatchLevel * 40.0), 8), Color.Orange);
                 }
 
-                // Fish
+                // --- FIX: Sonar Bobber Display Logic ---
+                var hasSonarBobber = this.bobbers.Contains("SonarBobber") ||
+                                     this.bobbers.Contains("951") ||
+                                     this.bobbers.Contains("(O)951");
+
                 var position = new Vector2(this.xPositionOnScreen + 64 + 18, this.yPositionOnScreen + this.bobberPosition + 12 + 24);
-                if (this.fishConfig.ShowFishInMinigame)
+
+                // --- FIX: Center the fish visually ---
+                // Adjusted offset to -8 to center it properly (previous -16 was too far left)
+                var centeredPosition = position - new Vector2(8, 8);
+
+                if (this.fishConfig.ShowFishInMinigame || hasSonarBobber)
                 {
-                    this.fishItem.DrawInMenuCorrected(b, position + this.fishShake + this.everythingShake, 0.5f, 1f, 0.88f, StackDrawType.Hide, Color.White, false, new CenterDrawOrigin());
+                    this.fishItem.DrawInMenuCorrected(b, centeredPosition + this.fishShake + this.everythingShake, 0.5f, 1f, 0.88f, StackDrawType.Hide, Color.White, false, new CenterDrawOrigin());
                 }
                 else
                 {
                     b.Draw(Game1.mouseCursors, position + this.fishShake + this.everythingShake, new Rectangle(614 + (this.fishTraits.IsLegendary ? 20 : 0), 1840, 20, 20), Color.White, 0.0f, new(10f, 10f), 2f, SpriteEffects.None, 0.88f);
                 }
 
-                // Sparkles
                 var sparkleText = this.sparkleTextField.GetValue();
                 sparkleText?.draw(b, new(this.xPositionOnScreen - 16, this.yPositionOnScreen - 64));
             }
@@ -288,6 +287,7 @@ namespace TehPers.FishingOverhaul.Gui
             {
                 return;
             }
+
             this.notifiedCatch = true;
             this.CatchFish?.Invoke(this, e);
         }
@@ -298,6 +298,7 @@ namespace TehPers.FishingOverhaul.Gui
             {
                 return;
             }
+
             this.notifiedCatch = true;
             this.LostFish?.Invoke(this, EventArgs.Empty);
         }

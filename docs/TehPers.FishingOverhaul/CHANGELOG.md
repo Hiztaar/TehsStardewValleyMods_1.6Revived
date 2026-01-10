@@ -2,6 +2,14 @@
 
 Changelog for [Teh's Fishing Overhaul Revived].
 
+### 3.3.92
+
+## Fixes 
+
+- Sonar Bobber now displays fishes properly
+- Fish position when fish is visible has been centered
+
+
 ### 3.3.91
 
 ## Added

@@ -89,6 +89,10 @@ namespace TehPers.FishingOverhaul.Services
         }
 
         // --- Helper: Robust ID Matching ---
+
+        /// <summary>
+        /// Checks if two keys match, handling the (O) prefix difference.
+        /// </summary>
         private static bool IsIdMatch(NamespacedKey target, NamespacedKey candidate)
         {
             if (target.Equals(candidate))
@@ -102,7 +106,11 @@ namespace TehPers.FishingOverhaul.Services
             return t == c;
         }
 
-        // --- 1. TARGETED BAIT: WEIGHT MODIFIER ---
+        // --- 1. TARGETED BAIT: WEIGHT MODIFIER (1.66x) ---
+
+        /// <summary>
+        /// Applies the targeted bait multiplier to the weights of fish entries.
+        /// </summary>
         private IEnumerable<IWeightedValue<FishEntry>> ApplyTargetedBaitToWeights(
             FishingInfo fishingInfo,
             IEnumerable<IWeightedValue<FishEntry>> chances)
@@ -121,8 +129,6 @@ namespace TehPers.FishingOverhaul.Services
                     if (IsIdMatch(targetKey, fishKey))
                     {
                         // Stardew 1.6 applies a 1.66x multiplier to the chance.
-                        // In a weighted pool, increasing the weight by 1.66x simulates this relative to other fish.
-                        // (Global Fish Chance is handled separately)
                         return weightedValue.Weight * 1.66;
                     }
 
@@ -132,7 +138,11 @@ namespace TehPers.FishingOverhaul.Services
             );
         }
 
-        // --- 2. TARGETED BAIT: GLOBAL CHANCE MODIFIER ---
+        // --- 2. TARGETED BAIT: GLOBAL CHANCE MODIFIER (1.66x) ---
+
+        /// <summary>
+        /// Applies the targeted bait multiplier to the global fish chance.
+        /// </summary>
         private double ApplyTargetedBaitToGlobalChance(FishingInfo fishingInfo, double baseChance)
         {
             if (fishingInfo.TargetedFish is not { } targetKey)
@@ -141,14 +151,12 @@ namespace TehPers.FishingOverhaul.Services
             }
 
             // Check if the targeted fish is actually available in the current pool
-            // We must call GetWeightedEntries directly to avoid infinite recursion if we called GetFishChances
             var availableFish = FishingApi.GetWeightedEntries(this.fishManagers, fishingInfo);
             var isTargetAvailable = availableFish.Any(f => IsIdMatch(targetKey, f.Value.FishKey) && f.Weight > 0);
 
             if (isTargetAvailable)
             {
                 // Vanilla Logic: Targeted Bait increases the catch chance by 1.66x.
-                // This effectively reduces the chance of catching trash.
                 return Math.Min(1.0, baseChance * 1.66);
             }
 
@@ -314,7 +322,7 @@ namespace TehPers.FishingOverhaul.Services
             var preparedChancesArgs = new PreparedFishEventArgs(fishingInfo, chances.ToList());
             this.OnPreparedFishChances(preparedChancesArgs);
 
-            // Apply 1.66x weight multiplier to the specific fish
+            // Apply 1.66x weight multiplier
             return this.ApplyTargetedBaitToWeights(fishingInfo, preparedChancesArgs.FishChances);
         }
 
@@ -360,7 +368,7 @@ namespace TehPers.FishingOverhaul.Services
             var eventArgs = new CalculatedFishChanceEventArgs(fishingInfo, chanceForFish);
             this.OnCalculatedFishChance(eventArgs);
 
-            // Apply 1.66x global multiplier if targeted bait is active and valid
+            // Apply 1.66x global multiplier if targeted bait is active
             var finalChance = this.ApplyTargetedBaitToGlobalChance(fishingInfo, eventArgs.Chance);
 
             return this.ClampFishChance(fishingInfo, finalChance);
