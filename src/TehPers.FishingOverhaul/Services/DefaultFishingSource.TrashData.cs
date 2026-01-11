@@ -166,7 +166,6 @@ namespace TehPers.FishingOverhaul.Services
                 new AvailabilityInfo(0.05d)
                 {
                     WaterTypes = WaterTypes.River | WaterTypes.PondOrOcean,
-                    // FIX: Use ImmutableArray.Create instead of new[]
                     IncludeLocations = ImmutableArray.Create("Town", "Mountain", "Forest", "Desert", "Woods")
                 }
             ));
@@ -177,7 +176,6 @@ namespace TehPers.FishingOverhaul.Services
                 new AvailabilityInfo(0.05d)
                 {
                     WaterTypes = WaterTypes.PondOrOcean,
-                    // FIX: Use ImmutableArray.Create
                     IncludeLocations = ImmutableArray.Create("Beach", "BeachNightMarket", "IslandWest", "IslandSouth", "IslandSouthEast")
                 }
             ));
@@ -188,10 +186,57 @@ namespace TehPers.FishingOverhaul.Services
                 new AvailabilityInfo(0.05d)
                 {
                     WaterTypes = WaterTypes.All,
-                    // FIX: Use ImmutableArray.Create
                     IncludeLocations = ImmutableArray.Create("UndergroundMine")
                 }
             ));
+
+            // --- STEP 4: Ridgeside Village Artifacts ---
+
+            // Village Hero Sculpture
+            trashEntries.Add(new TrashEntry(
+                new NamespacedKey("JA", "Object/Village Hero Sculpture"),
+                new AvailabilityInfo(1.0)
+                {
+                    IncludeLocations = ImmutableArray.Create("Custom_Ridgeside_RidgesideVillage"),
+                    PriorityTier = 20,
+                    FarmerPosition = new PositionConstraint
+                    {
+                        X = new CoordinateConstraint { GreaterThanEq = 145, LessThan = 146 },
+                        Y = new CoordinateConstraint { GreaterThanEq = 69, LessThan = 70 }
+                    },
+                    When = ImmutableDictionary.Create<string, string?>()
+                        .Add("HasFlag |contains=RSV.HeroStatue", "false")
+                }
+            )
+            {
+                OnCatch = new CatchActions
+                {
+                    SetFlags = ImmutableArray.Create("RSV.HeroStatue")
+                }
+            });
+
+            // Sapphire Pearl
+            trashEntries.Add(new TrashEntry(
+                new NamespacedKey("JA", "Object/Sapphire Pearl"),
+                new AvailabilityInfo(1.0)
+                {
+                    IncludeLocations = ImmutableArray.Create("Custom_Ridgeside_RidgesideVillage"),
+                    PriorityTier = 20,
+                    Position = new PositionConstraint
+                    {
+                        X = new CoordinateConstraint { GreaterThanEq = 60, LessThan = 61 },
+                        Y = new CoordinateConstraint { GreaterThanEq = 55, LessThan = 56 }
+                    },
+                    When = ImmutableDictionary.Create<string, string?>()
+                        .Add("HasFlag |contains=RSV.Sapphire", "false")
+                }
+            )
+            {
+                OnCatch = new CatchActions
+                {
+                    SetFlags = ImmutableArray.Create("RSV.Sapphire")
+                }
+            });
 
             return new(this.manifest)
             {

@@ -2,6 +2,13 @@
 
 Changelog for [Teh's Fishing Overhaul Revived].
 
+### 3.3.93
+
+## Fixes 
+
+- Fixed missing quest items from Ridgeside Village
+
+
 ### 3.3.92
 
 ## Fixes 

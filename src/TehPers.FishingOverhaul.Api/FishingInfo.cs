@@ -14,11 +14,7 @@ namespace TehPers.FishingOverhaul.Api
 {
     /// <summary>
     /// Information about a <see cref="Farmer"/> that is fishing.
-    ///
-    /// It is recommended to instead call <see cref="IFishingApi.CreateDefaultFishingInfo"/> to
-    /// create a new instance of this rather than call the constructor directly.
     /// </summary>
-    /// <param name="User">The <see cref="Farmer"/> that is fishing.</param>
     public record FishingInfo(Farmer User)
     {
         private static readonly Func<FishingRod, int> getBobberDepth;
@@ -85,7 +81,7 @@ namespace TehPers.FishingOverhaul.Api
         /// The names of the locations being fished in.
         /// </summary>
         public ImmutableArray<string> Locations { get; init; } = FishingInfo
-            .GetDefaultLocationNames(User.currentLocation)
+            .GetDefaultLocationNames(User.currentLocation, User.Tile)
             .ToImmutableArray();
 
         /// <summary>
@@ -199,30 +195,59 @@ namespace TehPers.FishingOverhaul.Api
         /// </list>
         /// </summary>
         /// <param name="location">The location to get the names of.</param>
+        /// <param name="tile">The tile position (optional) for context-sensitive overrides.</param>
         /// <returns>The location's names.</returns>
-        public static IEnumerable<string> GetDefaultLocationNames(GameLocation location)
+        public static IEnumerable<string> GetDefaultLocationNames(GameLocation location, Vector2 tile = default)
         {
-            return location switch
+            var names = new List<string>();
+
+            // 1. Standard Names
+            switch (location)
             {
-                MineShaft { Name: { } name, mineLevel: var mineLevel } => new[]
-                {
-                    name, "UndergroundMine", $"UndergroundMine/{mineLevel}"
-                },
-                Farm { Name: { } name } => Game1.whichFarm switch
-                {
-                    0 => new[] { name, $"{name}/Standard" },
-                    1 => new[] { name, $"{name}/Riverland" },
-                    2 => new[] { name, $"{name}/Forest" },
-                    3 => new[] { name, $"{name}/Hills" },
-                    4 => new[] { name, $"{name}/Wilderness" },
-                    5 => new[] { name, $"{name}/FourCorners" },
-                    6 => new[] { name, $"{name}/Beach" },
-                    7 => new[] { name, $"{name}/Meadows" },
-                    _ => new[] { name },
-                },
-                IslandLocation { Name: { } name } => new[] { name, "Island" },
-                _ => new[] { location.Name },
-            };
+                case MineShaft { Name: { } name, mineLevel: var mineLevel }:
+                    names.Add(name);
+                    names.Add("UndergroundMine");
+                    names.Add($"UndergroundMine/{mineLevel}");
+                    break;
+
+                case Farm { Name: { } name }:
+                    names.Add(name);
+                    var suffix = Game1.whichFarm switch
+                    {
+                        0 => "Standard",
+                        1 => "Riverland",
+                        2 => "Forest",
+                        3 => "Hills",
+                        4 => "Wilderness",
+                        5 => "FourCorners",
+                        6 => "Beach",
+                        7 => "Meadows",
+                        _ => null
+                    };
+                    if (suffix != null)
+                    {
+                        names.Add($"{name}/{suffix}");
+                    }
+                    break;
+
+                case IslandLocation { Name: { } name }:
+                    names.Add(name);
+                    names.Add("Island");
+                    break;
+
+                default:
+                    names.Add(location.Name);
+                    break;
+            }
+
+            // 2. Stardew Valley 1.6 API Override
+            // This captures overrides from SVE and other mods that define fishing locations dynamically
+            if (location.GetFishingLocation(tile) is string overrideName && !string.IsNullOrWhiteSpace(overrideName))
+            {
+                names.Add(overrideName);
+            }
+
+            return names.Distinct();
         }
     }
 }
