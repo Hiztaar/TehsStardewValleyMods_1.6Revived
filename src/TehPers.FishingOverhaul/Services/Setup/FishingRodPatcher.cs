@@ -130,11 +130,13 @@ namespace TehPers.FishingOverhaul.Services.Setup
                     break;
             }
 
+            // --- 1.6 BAIT DETECTION ---
             var bait = rod.GetBait();
             var baitId = bait?.QualifiedItemId;
             var isChallengeBait = baitId == "(O)ChallengeBait";
             var isDeluxeBait = baitId == "(O)DeluxeBait";
 
+            // Deluxe Bait Effect: +2 Fishing Level (Increases Bar Size)
             var effectiveFishingInfo = isDeluxeBait
                 ? fishingInfo with { FishingLevel = fishingInfo.FishingLevel + 2 }
                 : fishingInfo;
@@ -150,13 +152,42 @@ namespace TehPers.FishingOverhaul.Services.Setup
             var fishSizePercent = Math.Clamp(sizeFactor * (1.0f + Game1.random.Next(-10, 11) / 100.0f), 0.0f, 1.0f);
             var treasure = !Game1.isFestival() && fishingInfo.User.fishCaught?.Count() > 1 && Game1.random.NextDouble() < this.fishingApi.GetChanceForTreasure(effectiveFishingInfo);
 
+            // FIX: Robust Tackle ID Collection
+            // We use rod.GetTackle() to be safe with modded rods.
+            // We add ALL variants: "692", "(O)692", etc. to ensure any string check passes.
+            var tackleIds = new List<string>();
+            foreach (var tackle in rod.GetTackle())
+            {
+                if (tackle != null)
+                {
+                    var id = tackle.ItemId;
+                    var qId = tackle.QualifiedItemId;
+
+                    if (!string.IsNullOrEmpty(id))
+                    {
+                        tackleIds.Add(id);
+                    }
+
+                    if (!string.IsNullOrEmpty(qId) && qId != id)
+                    {
+                        tackleIds.Add(qId);
+                    }
+
+                    // Explicitly strip (O) just in case ItemId still has it
+                    if (id.StartsWith("(O)"))
+                    {
+                        tackleIds.Add(id[3..]);
+                    }
+                }
+            }
+
             var customBobber = this.customBobberBarFactory.Create(
                 effectiveFishingInfo,
                 fishEntry,
                 fishItem,
                 fishSizePercent,
                 treasure,
-                rod.GetTackle().Where(t => t != null).Select(tackle => tackle.ItemId).ToList(),
+                tackleIds,
                 fromFishPond
             );
 
@@ -200,30 +231,27 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
             customBobber.CatchFish += (_, info) =>
             {
-                if (info is not CatchInfo.FishCatch fishCatch)
+                // --- CHALLENGE BAIT LOGIC ---
+                if (isChallengeBait && info is CatchInfo.FishCatch fishCatch)
                 {
-                    this.CatchItem(rod, info);
-                    return;
+                    // Perfect = 3 fish
+                    // Not Perfect = 1 fish
+                    var amount = info.State.IsPerfect ? 3 : 1;
+                    info = fishCatch with { NumberOfFishCaught = amount };
                 }
 
-                if (isChallengeBait)
-                {
-                    var amount = fishCatch.State.IsPerfect ? 3 : 1;
-                    fishCatch = fishCatch with { NumberOfFishCaught = amount };
-                }
-
-                switch (fishCatch.State)
+                switch (info.State)
                 {
                     case (true, _): // Perfect
                         this.fishingApi.SetStreak(fishingInfo.User, initialStreak + 1);
-                        fishCatch = fishCatch with { FishQuality = fishCatch.FishQuality + this.fishConfig.GetQualityIncrease(initialStreak + 1) + 1 };
+                        info = info with { FishQuality = info.FishQuality + this.fishConfig.GetQualityIncrease(initialStreak + 1) + 1 };
                         break;
                     case (false, TreasureState.Caught): // Restored
                         if (this.fishConfig.GetQualityIncrease(initialStreak) > 0)
                         {
                             Game1.showGlobalMessage(this.helper.Translation.Get("text.streak.restored", new { streak = initialStreak }));
                         }
-                        fishCatch = fishCatch with { FishQuality = fishCatch.FishQuality + this.fishConfig.GetQualityIncrease(initialStreak) };
+                        info = info with { FishQuality = info.FishQuality + this.fishConfig.GetQualityIncrease(initialStreak) };
                         break;
                     default: // Normal
                         if (this.fishConfig.GetQualityIncrease(initialStreak) > 0)
@@ -234,8 +262,8 @@ namespace TehPers.FishingOverhaul.Services.Setup
                         break;
                 }
 
-                var clampedInfo = this.fishConfig.ClampQuality(fishCatch);
-                this.CatchItem(rod, clampedInfo);
+                info = this.fishConfig.ClampQuality(info);
+                this.CatchItem(rod, info);
             };
 
             Game1.activeClickableMenu = customBobber;
@@ -272,32 +300,34 @@ namespace TehPers.FishingOverhaul.Services.Setup
                 this.monitor.LogOnce($"Failed to set whichFish (harmless if fishing works): {ex.Message}", LogLevel.Trace);
             }
 
-            if (info is CatchInfo.FishCatch fishCatch)
+            if (info is CatchInfo.FishCatch(_, _, _, var fishSize, var isLegendary, var fishQuality, var fishDifficulty, var (isPerfect, treasureState), _, var numberOfFishCaught))
             {
                 if (item is SObject obj)
                 {
-                    obj.Quality = fishCatch.FishQuality;
-                    obj.Stack = fishCatch.NumberOfFishCaught;
+                    obj.Quality = fishQuality;
+                    obj.Stack = numberOfFishCaught;
                 }
 
-                var wasTreasureCaught = fishCatch.State.Treasure == TreasureState.Caught;
+                var wasTreasureCaught = treasureState is TreasureState.Caught;
                 rod.treasureCaught = wasTreasureCaught;
-                rod.fishSize = fishCatch.FishSize;
-                rod.fishQuality = Math.Max(fishCatch.FishQuality, 0);
+                rod.fishSize = fishSize;
+                rod.fishQuality = Math.Max(fishQuality, 0);
                 rod.fromFishPond = fromFishPond;
-                rod.numberOfFishCaught = fishCatch.NumberOfFishCaught;
+                rod.numberOfFishCaught = numberOfFishCaught;
 
-                if (fishCatch.IsLegendary && !fromFishPond && fishingInfo.User.IsLocalPlayer)
+                // --- RECATCHABLE LEGENDARIES DATE ---
+                if (isLegendary && !fromFishPond && fishingInfo.User.IsLocalPlayer)
                 {
-                    fishingInfo.User.modData[$"TehPers.FishingOverhaul/LastCaught_{itemId}"] = Game1.stats.DaysPlayed.ToString();
+                    // Save the current day (DaysPlayed) for this specific fish
+                    fishingInfo.User.modData[$"Hiztaar.FishingOverhaulRevived/LastCaught_{itemId}"] = Game1.stats.DaysPlayed.ToString();
                 }
 
                 if (!Game1.isFestival() && fishingInfo.User.IsLocalPlayer && !fromFishPond)
                 {
-                    rod.bossFish = fishCatch.IsLegendary;
-                    var experience = Math.Max(1, (fishCatch.FishQuality + 1) * 3 + fishCatch.FishDifficulty / 3)
+                    rod.bossFish = isLegendary;
+                    var experience = Math.Max(1, (fishQuality + 1) * 3 + fishDifficulty / 3)
                         * (wasTreasureCaught ? 2.2 : 1)
-                        * (fishCatch.State.IsPerfect ? 2.4 : 1)
+                        * (isPerfect ? 2.4 : 1)
                         * (rod.bossFish ? 5.0 : 1);
                     fishingInfo.User.gainExperience(1, (int)experience);
                 }
@@ -464,14 +494,19 @@ namespace TehPers.FishingOverhaul.Services.Setup
                 {
                     rod.recordSize = user.caughtFish(itemId, fishSize, fromFishPond, stack);
 
+                    // --- FIX: TROUT DERBY GOLDEN TAGS ---
+                    // Rainbow Trout ID is "138" or "(O)138".
+                    // Logic: Summer 20 & 21, Location 'Forest', 33% chance per fish caught.
                     if ((itemId == "138" || itemId == "(O)138") && !fromFishPond && user.currentLocation is StardewValley.Locations.Forest)
                     {
                         if (Game1.currentSeason == "summer" && (Game1.dayOfMonth == 20 || Game1.dayOfMonth == 21))
                         {
+                            // Loop for each fish caught (e.g. 3 times if Challenge Bait was perfect)
                             for (var i = 0; i < stack; i++)
                             {
                                 if (Game1.random.NextDouble() < 0.33)
                                 {
+                                    // CORRECT ID: TroutDerbyTag (Qualified: (O)TroutDerbyTag)
                                     var tag = StardewValley.ItemRegistry.Create("(O)TroutDerbyTag", 1);
                                     if (user.addItemToInventoryBool(tag))
                                     {
@@ -486,6 +521,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
                             }
                         }
                     }
+                    // ------------------------------------
                 }
                 user.faceDirection(2);
             }
@@ -499,6 +535,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
                 rod.doneFishing(user);
             }
 
+            // Fixed CS8602: added null check for info.Item
             if (info is CatchInfo.FishCatch { IsLegendary: true } && info.Item != null)
             {
                 Game1.showGlobalMessage(Game1.content.LoadString(@"Strings\StringsFromCSFiles:FishingRod.cs.14068"));
@@ -584,30 +621,17 @@ namespace TehPers.FishingOverhaul.Services.Setup
                     var bobberTile = patcher.helper.Reflection.GetMethod(__instance, "calculateBobberTile").Invoke<Vector2>();
                     var fromFishPond = location.isTileBuildingFishable((int)bobberTile.X, (int)bobberTile.Y);
 
-                    // --- TARGETED BAIT LOGIC ---
-                    PossibleCatch? forcedCatch = null;
-                    var bait = __instance.GetBait();
-
-                    if (bait != null && bait.preservedParentSheetIndex.Value is { } targetId && !string.IsNullOrEmpty(targetId))
+                    if (((IFishingApi)patcher.fishingApi).GetFishPondFish(who, bobberTile, true) is { } fishKey)
                     {
-                        var allChances = patcher.fishingApi.GetFishChances(fishingInfo);
-
-                        var targetEntry = allChances.FirstOrDefault(w =>
+                        if (patcher.namespaceRegistry.TryGetItemFactory(fishKey, out var factory))
                         {
-                            var fId = w.Value.FishKey.Key;
-                            var t = targetId.StartsWith("(O)") ? targetId[3..] : targetId;
-                            var f = fId.StartsWith("(O)") ? fId[3..] : fId;
-                            return t == f;
-                        });
-
-                        if (targetEntry != null && targetEntry.Weight > 0)
-                        {
-                            forcedCatch = new PossibleCatch.Fish(targetEntry.Value);
+                            patcher.CatchItem(__instance, new CatchInfo.FishCatch(fishingInfo, new(fishKey, new(0.0)), factory.Create(), -1, false, 0, 0, new(false, TreasureState.None), true));
+                            return false;
                         }
+                        patcher.monitor.Log($"No provider for {fishKey} from pond.", LogLevel.Error);
                     }
-                    // -----------------------------
 
-                    var possibleCatch = forcedCatch ?? patcher.fishingApi.GetPossibleCatch(fishingInfo);
+                    var possibleCatch = patcher.fishingApi.GetPossibleCatch(fishingInfo);
 
                     while (true)
                     {
@@ -662,7 +686,7 @@ namespace TehPers.FishingOverhaul.Services.Setup
 
         public static bool TickUpdate_Prefix(
             FishingRod __instance,
-            GameTime time, // REVERTED FROM _ TO MATCH ORIGINAL PARAMETER NAME
+            GameTime time,
             Farmer who,
             ref int ___recastTimerMs,
             int ___clearWaterDistance

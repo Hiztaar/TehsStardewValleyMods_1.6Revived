@@ -302,7 +302,6 @@ namespace TehPers.FishingOverhaul.Services
             return NamespacedKey.SdvObject(cleanId);
         }
 
-        // THIS IS THE SINGLE SOURCE OF TRUTH FOR THIS METHOD
         private ImmutableArray<string> GetLocationNames(string locationName, bool isLegendary = false)
         {
             if (isLegendary)
@@ -317,9 +316,9 @@ namespace TehPers.FishingOverhaul.Services
 
             return locationName switch
             {
+                // Beach: REMOVED standardFarm so generic farms don't get Ocean fish.
                 "Beach" => ImmutableArray.Create("Beach", "BeachNightMarket", "Farm/Beach")
-                    .AddRange(ferngillMulti)
-                    .AddRange(standardFarm),
+                    .AddRange(ferngillMulti),
 
                 "Forest" => ImmutableArray.Create("Forest", "Farm/Riverland", "Farm/Forest", "Farm/Hills", "Farm/FourCorners")
                     .AddRange(frontierFarmOnly)
