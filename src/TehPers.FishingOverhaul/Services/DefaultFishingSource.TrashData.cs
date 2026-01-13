@@ -31,6 +31,9 @@ namespace TehPers.FishingOverhaul.Services
             "856", // River Jelly (1.6)
             "857", // Sea Jelly (1.6)
             "858", // Cave Jelly (1.6)
+            // Ridgeside Village 1.6
+            "Rafseazz.RSVCP_Village_Hero_Sculpture",
+            "Rafseazz.RSVCP_Sapphire_Pearl"
         };
 
         private FishingContent GetDefaultTrashData()
@@ -41,7 +44,7 @@ namespace TehPers.FishingOverhaul.Services
             var trashEntries = new List<TrashEntry>();
             var baseAvailabilities = new Dictionary<NamespacedKey, AvailabilityInfo>();
 
-            // --- STEP 1: Parse Base Trash from Data/Fish ---
+            // --- STEP 1: Parse Base Trash from Data/Fish (Algae, Seaweed) ---
             foreach (var (rawKey, data) in fishData)
             {
                 var parts = data.Split('/');
@@ -53,7 +56,7 @@ namespace TehPers.FishingOverhaul.Services
                 var cleanId = rawKey.StartsWith("(O)") ? rawKey[3..] : rawKey;
 
                 // Only keep explicit trash/algae/jellies
-                if (!extendedTrashIds.Contains(cleanId))
+                if (!DefaultFishingSource.extendedTrashIds.Contains(cleanId))
                 {
                     continue;
                 }
@@ -110,7 +113,7 @@ namespace TehPers.FishingOverhaul.Services
                     var cleanId = spawnData.ItemId.StartsWith("(O)") ? spawnData.ItemId[3..] : spawnData.ItemId;
 
                     // If it is NOT a known trash item, skip (to avoid duplicating actual fish here)
-                    if (!extendedTrashIds.Contains(cleanId))
+                    if (!DefaultFishingSource.extendedTrashIds.Contains(cleanId))
                     {
                         continue;
                     }
@@ -122,8 +125,25 @@ namespace TehPers.FishingOverhaul.Services
                         ? baseAvail
                         : new AvailabilityInfo(0.1f);
 
+                    // Call the method defined in FishData.cs
                     var locations = this.GetLocationNames(locName);
                     info = info with { IncludeLocations = locations };
+
+                    // --- STRICT WATER TYPE ENFORCEMENT ---
+                    var waterConstraint = locName switch
+                    {
+                        "Beach" => WaterTypes.PondOrOcean,
+                        "Town" => WaterTypes.River,
+                        "Forest" => WaterTypes.River | WaterTypes.Freshwater,
+                        "Mountain" => WaterTypes.Freshwater,
+                        "Desert" => WaterTypes.Freshwater,
+                        _ => WaterTypes.All
+                    };
+
+                    if (waterConstraint != WaterTypes.All)
+                    {
+                        info = info with { WaterTypes = waterConstraint };
+                    }
 
                     if (!string.IsNullOrEmpty(spawnData.Condition))
                     {
@@ -158,7 +178,30 @@ namespace TehPers.FishingOverhaul.Services
                 }
             }
 
-            // --- STEP 3: Manual Registration for Jellies (1.6) ---
+            // --- STEP 3: Manual Registration for Standard Trash (Missing in 1.6 Data/Locations) ---
+            var globalTrashLocations = ImmutableArray.Create(
+                "Town", "Forest", "Beach", "Mountain", "Desert", "Woods", "Sewer", "BugLand", "WitchSwamp", "UndergroundMine",
+                "Farm", "Custom_FrontierFarm", "FrontierFarm",
+                "Custom_FerngillRepublicFrontier", "Custom_Ferngill_Frontier", "Ferngill_Frontier", "Custom_FerngillFrontier",
+                "Custom_Ridgeside_RidgesideVillage"
+            );
+
+            // 168: Trash, 169: Driftwood, 170: Broken Glasses, 171: Broken CD, 172: Soggy Newspaper, 167: Joja Cola
+            var standardTrashIds = new[] { "168", "169", "170", "171", "172", "167" };
+
+            foreach (var id in standardTrashIds)
+            {
+                trashEntries.Add(new TrashEntry(
+                    NamespacedKey.SdvObject(id),
+                    new AvailabilityInfo(0.1d) // Default base chance for standard trash
+                    {
+                        WaterTypes = WaterTypes.All, // Can be caught in any water
+                        IncludeLocations = globalTrashLocations
+                    }
+                ));
+            }
+
+            // --- STEP 4: Manual Registration for Jellies (1.6) ---
 
             // River Jelly: Found in Rivers and Lakes (Freshwater)
             trashEntries.Add(new TrashEntry(
@@ -166,7 +209,7 @@ namespace TehPers.FishingOverhaul.Services
                 new AvailabilityInfo(0.05d)
                 {
                     WaterTypes = WaterTypes.River | WaterTypes.PondOrOcean,
-                    IncludeLocations = ImmutableArray.Create("Town", "Mountain", "Forest", "Desert", "Woods")
+                    IncludeLocations = ImmutableArray.Create("Town", "Mountain", "Forest", "Desert", "Woods", "Custom_FrontierFarm", "Custom_FerngillRepublicFrontier")
                 }
             ));
 
@@ -176,7 +219,7 @@ namespace TehPers.FishingOverhaul.Services
                 new AvailabilityInfo(0.05d)
                 {
                     WaterTypes = WaterTypes.PondOrOcean,
-                    IncludeLocations = ImmutableArray.Create("Beach", "BeachNightMarket", "IslandWest", "IslandSouth", "IslandSouthEast")
+                    IncludeLocations = ImmutableArray.Create("Beach", "BeachNightMarket", "IslandWest", "IslandSouth", "IslandSouthEast", "Custom_FerngillRepublicFrontier")
                 }
             ));
 
@@ -190,22 +233,25 @@ namespace TehPers.FishingOverhaul.Services
                 }
             ));
 
-            // --- STEP 4: Ridgeside Village Artifacts ---
+            // --- STEP 5: Ridgeside Village Specials (Hardcoded) ---
 
             // Village Hero Sculpture
             trashEntries.Add(new TrashEntry(
-                new NamespacedKey("JA", "Object/Village Hero Sculpture"),
-                new AvailabilityInfo(1.0)
+                NamespacedKey.SdvObject("Rafseazz.RSVCP_Village_Hero_Sculpture"),
+                new AvailabilityInfo(1.0d)
                 {
                     IncludeLocations = ImmutableArray.Create("Custom_Ridgeside_RidgesideVillage"),
-                    PriorityTier = 20,
+                    PriorityTier = 20d,
                     FarmerPosition = new PositionConstraint
                     {
                         X = new CoordinateConstraint { GreaterThanEq = 145, LessThan = 146 },
                         Y = new CoordinateConstraint { GreaterThanEq = 69, LessThan = 70 }
                     },
-                    When = ImmutableDictionary.Create<string, string?>()
-                        .Add("HasFlag |contains=RSV.HeroStatue", "false")
+                    When = new Dictionary<string, string?>
+                    {
+                        ["HasSeenEvent |contains=75160259"] = "true",
+                        ["HasFlag |contains=RSV.HeroStatue"] = "false"
+                    }.ToImmutableDictionary()
                 }
             )
             {
@@ -217,18 +263,21 @@ namespace TehPers.FishingOverhaul.Services
 
             // Sapphire Pearl
             trashEntries.Add(new TrashEntry(
-                new NamespacedKey("JA", "Object/Sapphire Pearl"),
-                new AvailabilityInfo(1.0)
+                NamespacedKey.SdvObject("Rafseazz.RSVCP_Sapphire_Pearl"),
+                new AvailabilityInfo(1.0d)
                 {
                     IncludeLocations = ImmutableArray.Create("Custom_Ridgeside_RidgesideVillage"),
-                    PriorityTier = 20,
+                    PriorityTier = 20d,
                     Position = new PositionConstraint
                     {
                         X = new CoordinateConstraint { GreaterThanEq = 60, LessThan = 61 },
                         Y = new CoordinateConstraint { GreaterThanEq = 55, LessThan = 56 }
                     },
-                    When = ImmutableDictionary.Create<string, string?>()
-                        .Add("HasFlag |contains=RSV.Sapphire", "false")
+                    When = new Dictionary<string, string?>
+                    {
+                        ["HasSeenEvent |contains=75160259"] = "true",
+                        ["HasFlag |contains=RSV.Sapphire"] = "false"
+                    }.ToImmutableDictionary()
                 }
             )
             {

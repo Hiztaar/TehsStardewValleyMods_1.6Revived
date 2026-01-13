@@ -7,7 +7,7 @@ Changelog for [Teh's Fishing Overhaul Revived].
 ## Fixes 
 
 - Fixed missing quest items from Ridgeside Village
-
+- Fixed SVE Frontier Farm and Ferngill Frontier Farm missing fishes and trash
 
 ### 3.3.92
 

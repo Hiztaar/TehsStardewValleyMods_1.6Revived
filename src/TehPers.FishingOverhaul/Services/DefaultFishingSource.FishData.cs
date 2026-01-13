@@ -161,6 +161,22 @@ namespace TehPers.FishingOverhaul.Services
                     var locations = this.GetLocationNames(locName, isLegendary);
                     info = info with { IncludeLocations = locations };
 
+                    // --- STRICT WATER TYPE ENFORCEMENT ---
+                    var waterConstraint = locName switch
+                    {
+                        "Beach" => WaterTypes.PondOrOcean,
+                        "Town" => WaterTypes.River,
+                        "Forest" => WaterTypes.River | WaterTypes.Freshwater,
+                        "Mountain" => WaterTypes.Freshwater,
+                        "Desert" => WaterTypes.Freshwater,
+                        _ => WaterTypes.All
+                    };
+
+                    if (waterConstraint != WaterTypes.All)
+                    {
+                        info = info with { WaterTypes = waterConstraint };
+                    }
+
                     if (!string.IsNullOrEmpty(spawnData.Condition))
                     {
                         info = this.ParseConditionString(spawnData.Condition, info, locName);
@@ -186,14 +202,10 @@ namespace TehPers.FishingOverhaul.Services
                         };
                     }
 
-                    // --- CRITICAL FIX FOR RECATCHABLE LEGENDARIES ---
                     if (isVanillaLegendary)
                     {
-                        // 1. Remove existing vanilla checks (e.g., from other mods like SVE)
                         var cleanedWhen = info.When.Where(pair => !pair.Key.Contains("!PLAYER_HAS_CAUGHT_FISH") && !pair.Key.Contains("!PLAYER_HAS_CAUGHT_FISH_AT_LOCATION"));
                         info = info with { When = cleanedWhen.ToImmutableDictionary() };
-
-                        // 2. Add our custom smart rule
                         info = info with
                         {
                             When = info.When.Add($"Query: LEGENDARY_IS_RECHARGEABLE Current {qualifiedId}", "true")
@@ -229,37 +241,23 @@ namespace TehPers.FishingOverhaul.Services
             // --- STEP 3: Manual Injections ---
             if (fishTraits.ContainsKey(NamespacedKey.SdvObject(158)))
             {
-                var locs = new List<string>();
-                for (var i = 20; i < 60; i++)
-                {
-                    locs.Add($"UndergroundMine/{i}");
-                }
+                var locs = Enumerable.Range(20, 40).Select(i => $"UndergroundMine/{i}").ToImmutableArray();
                 var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(158)) ?? new FishAvailabilityInfo(0.05f);
-                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(158), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
+                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(158), baseInfo with { IncludeLocations = locs }));
             }
 
             if (fishTraits.ContainsKey(NamespacedKey.SdvObject(161)))
             {
-                var locs = new List<string>();
-                for (var i = 60; i < 100; i++)
-                {
-                    locs.Add($"UndergroundMine/{i}");
-                }
+                var locs = Enumerable.Range(60, 40).Select(i => $"UndergroundMine/{i}").ToImmutableArray();
                 var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(161)) ?? new FishAvailabilityInfo(0.05f);
-                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(161), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
+                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(161), baseInfo with { IncludeLocations = locs }));
             }
 
             if (fishTraits.ContainsKey(NamespacedKey.SdvObject(162)))
             {
-                var locs = new List<string>();
-                for (var i = 100; i <= 120; i++)
-                {
-                    locs.Add($"UndergroundMine/{i}");
-                }
-                locs.Add("Caldera");
-                locs.Add("VolcanoDungeon");
+                var locs = Enumerable.Range(100, 21).Select(i => $"UndergroundMine/{i}").Concat(new[] { "Caldera", "VolcanoDungeon" }).ToImmutableArray();
                 var baseInfo = baseAvailabilities.GetValueOrDefault(NamespacedKey.SdvObject(162)) ?? new FishAvailabilityInfo(0.02f);
-                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(162), baseInfo with { IncludeLocations = locs.ToImmutableArray() }));
+                fishEntries.Add(new FishEntry(NamespacedKey.SdvObject(162), baseInfo with { IncludeLocations = locs }));
             }
 
             var isSpring = Game1.currentSeason.Equals("spring", StringComparison.OrdinalIgnoreCase);
@@ -304,6 +302,7 @@ namespace TehPers.FishingOverhaul.Services
             return NamespacedKey.SdvObject(cleanId);
         }
 
+        // THIS IS THE SINGLE SOURCE OF TRUTH FOR THIS METHOD
         private ImmutableArray<string> GetLocationNames(string locationName, bool isLegendary = false)
         {
             if (isLegendary)
@@ -311,11 +310,27 @@ namespace TehPers.FishingOverhaul.Services
                 return ImmutableArray.Create(locationName);
             }
 
+            // Separate lists for Frontier Farm (River Only) vs Ferngill (River + Beach)
+            var frontierFarmOnly = new[] { "Custom_FrontierFarm", "FrontierFarm" };
+            var ferngillMulti = new[] { "Custom_FerngillRepublicFrontier", "Custom_Ferngill_Frontier", "Ferngill_Frontier", "Custom_FerngillFrontier" };
+            var standardFarm = new[] { "Farm" };
+
             return locationName switch
             {
-                "Beach" => ImmutableArray.Create("Beach", "BeachNightMarket", "Farm/Beach"),
-                "Forest" => ImmutableArray.Create("Forest", "Farm/Riverland", "Farm/Forest", "Farm/Hills", "Farm/FourCorners"),
-                "Town" => ImmutableArray.Create("Town", "Farm/Riverland", "Farm/Standard"),
+                "Beach" => ImmutableArray.Create("Beach", "BeachNightMarket", "Farm/Beach")
+                    .AddRange(ferngillMulti)
+                    .AddRange(standardFarm),
+
+                "Forest" => ImmutableArray.Create("Forest", "Farm/Riverland", "Farm/Forest", "Farm/Hills", "Farm/FourCorners")
+                    .AddRange(frontierFarmOnly)
+                    .AddRange(ferngillMulti)
+                    .AddRange(standardFarm),
+
+                "Town" => ImmutableArray.Create("Town", "Farm/Riverland", "Farm/Standard")
+                    .AddRange(frontierFarmOnly)
+                    .AddRange(ferngillMulti)
+                    .AddRange(standardFarm),
+
                 "Mountain" => ImmutableArray.Create("Mountain", "Farm/Mountain", "Farm/FourCorners", "Farm/Wilderness"),
                 "UndergroundMine" => ImmutableArray.Create("UndergroundMine"),
                 _ => ImmutableArray.Create(locationName)
@@ -328,28 +343,28 @@ namespace TehPers.FishingOverhaul.Services
             var parts = data.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             foreach (var p in parts)
             {
-                if (string.Equals(p, "spring", StringComparison.OrdinalIgnoreCase))
-                {
-                    seasons |= Seasons.Spring;
-                }
-                else if (string.Equals(p, "summer", StringComparison.OrdinalIgnoreCase))
-                {
-                    seasons |= Seasons.Summer;
-                }
-                else if (string.Equals(p, "fall", StringComparison.OrdinalIgnoreCase) || string.Equals(p, "autumn", StringComparison.OrdinalIgnoreCase))
-                {
-                    seasons |= Seasons.Fall;
-                }
-                else if (string.Equals(p, "winter", StringComparison.OrdinalIgnoreCase))
-                {
-                    seasons |= Seasons.Winter;
-                }
-                else if (Enum.TryParse<Seasons>(p, true, out var s))
+                if (Enum.TryParse<Seasons>(p, true, out var s))
                 {
                     seasons |= s;
                 }
+                else if (p.Equals("spring", StringComparison.OrdinalIgnoreCase))
+                {
+                    seasons |= Seasons.Spring;
+                }
+                else if (p.Equals("summer", StringComparison.OrdinalIgnoreCase))
+                {
+                    seasons |= Seasons.Summer;
+                }
+                else if (p.Equals("fall", StringComparison.OrdinalIgnoreCase) || p.Equals("autumn", StringComparison.OrdinalIgnoreCase))
+                {
+                    seasons |= Seasons.Fall;
+                }
+                else if (p.Equals("winter", StringComparison.OrdinalIgnoreCase))
+                {
+                    seasons |= Seasons.Winter;
+                }
             }
-            return seasons == Seasons.None ? (Seasons.Spring | Seasons.Summer | Seasons.Fall | Seasons.Winter) : seasons;
+            return seasons == Seasons.None ? Seasons.All : seasons;
         }
 
         private Weathers ParseWeathers(string data)
@@ -439,18 +454,8 @@ namespace TehPers.FishingOverhaul.Services
                             }
                         }
                         break;
-                    case "IS_PASSIVE_FESTIVAL_OPEN":
-                    case "IS_FESTIVAL_DAY":
-                    case "PLAYER_SPECIAL_ORDER_RULE_ACTIVE":
-                    case "!PLAYER_SPECIAL_ORDER_RULE_ACTIVE":
-                    case "RANDOM":
-                        break;
                     default:
-                        if (cond.Contains("!PLAYER_HAS_CAUGHT_FISH") || cond.Contains("!PLAYER_HAS_CAUGHT_FISH_AT_LOCATION"))
-                        {
-                            // Do nothing (skip adding this condition)
-                        }
-                        else
+                        if (!cond.Contains("!PLAYER_HAS_CAUGHT_FISH"))
                         {
                             unparsedConditions[$"Query: {cond.Trim()}"] = "true";
                         }
